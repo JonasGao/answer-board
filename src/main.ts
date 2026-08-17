@@ -1,7 +1,12 @@
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-
-type Entry = { id: number; text: string };
-type Round = { id: number; entries: Entry[] };
+import {
+  type Entry,
+  type Round,
+  entryNumber,
+  formatAll,
+  formatRound,
+  roundTitle,
+} from "./format";
 
 let nextId = 1;
 const rounds: Round[] = [];
@@ -67,53 +72,6 @@ function clearAll(): void {
   render();
 }
 
-// Global continuous Q-number of the entry at (roundIndex, entryIndex).
-function entryNumber(roundIndex: number, entryIndex: number): number {
-  let n = 0;
-  for (let i = 0; i < roundIndex; i++) {
-    n += rounds[i].entries.length;
-  }
-  return n + entryIndex + 1;
-}
-
-// Number of entries that precede the given round (for Q numbering).
-function entriesBeforeRound(roundIndex: number): number {
-  let n = 0;
-  for (let i = 0; i < roundIndex; i++) {
-    n += rounds[i].entries.length;
-  }
-  return n;
-}
-
-// Format one round: each entry on its own line "Q{n}: {answer}",
-// entries separated by a blank line. Empty round -> empty string.
-function formatRound(round: Round): string {
-  const roundIndex = rounds.indexOf(round);
-  let q = entriesBeforeRound(roundIndex);
-  const lines: string[] = [];
-  for (const entry of round.entries) {
-    q += 1;
-    lines.push(`Q${q}: ${entry.text}`);
-  }
-  return lines.join("\n\n");
-}
-
-// Format everything: each round is prepended with a "Round N" title line,
-// rounds separated by a blank line. Empty rounds still emit their title line.
-function formatAll(): string {
-  const blocks: string[] = [];
-  let q = 0;
-  rounds.forEach((round, roundIndex) => {
-    const blockLines: string[] = [`Round ${roundIndex + 1}`];
-    for (const entry of round.entries) {
-      q += 1;
-      blockLines.push(`Q${q}: ${entry.text}`);
-    }
-    blocks.push(blockLines.join("\n\n"));
-  });
-  return blocks.join("\n\n");
-}
-
 async function copyText(text: string): Promise<boolean> {
   try {
     await writeText(text);
@@ -131,14 +89,14 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 async function copyRound(roundId: number): Promise<void> {
-  const round = rounds.find((r) => r.id === roundId);
-  if (!round) return;
-  const ok = await copyText(formatRound(round));
+  const roundIndex = rounds.findIndex((r) => r.id === roundId);
+  if (roundIndex === -1) return;
+  const ok = await copyText(formatRound(rounds, roundIndex));
   showToast(ok ? "已复制" : "复制失败");
 }
 
 async function copyAll(): Promise<void> {
-  const ok = await copyText(formatAll());
+  const ok = await copyText(formatAll(rounds));
   showToast(ok ? "已复制" : "复制失败");
 }
 
@@ -162,7 +120,7 @@ function render(): void {
 
     const title = document.createElement("h2");
     title.className = "round-title";
-    title.textContent = `Round ${roundIndex + 1}`;
+    title.textContent = roundTitle(roundIndex);
 
     const actions = document.createElement("div");
     actions.className = "round-actions";
@@ -197,7 +155,7 @@ function render(): void {
 
       const label = document.createElement("span");
       label.className = "entry-label";
-      label.textContent = `Q${entryNumber(roundIndex, entryIndex)}`;
+      label.textContent = `Q${entryNumber(rounds, roundIndex, entryIndex)}`;
 
       const textarea = document.createElement("textarea");
       textarea.className = "entry-input";
