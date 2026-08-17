@@ -10,6 +10,7 @@ import {
 import {
   type Theme,
   initPrefs,
+  isTheme,
   loadFont,
   loadTheme,
   setFont,
@@ -48,15 +49,24 @@ function addRound(): Round {
 // "新建轮次": a fresh round that already contains one empty entry, which is
 // focused so it is immediately usable. Kept separate from addRound() so the
 // "添加" path (via ensureLastRound) still creates rounds with no entries.
-function addRoundWithEntry(): void {
-  const round = addRound();
+function createEntry(round: Round): Entry {
   const entry: Entry = { id: nextId++, text: "" };
   round.entries.push(entry);
-  render();
+  return entry;
+}
+
+function focusEntry(entryId: number): void {
   const textarea = document.querySelector<HTMLTextAreaElement>(
-    `textarea[data-entry-id="${entry.id}"]`
+    `textarea[data-entry-id="${entryId}"]`
   );
   textarea?.focus();
+}
+
+function addRoundWithEntry(): void {
+  const round = addRound();
+  const entry = createEntry(round);
+  render();
+  focusEntry(entry.id);
 }
 
 function ensureLastRound(): Round {
@@ -68,13 +78,9 @@ function ensureLastRound(): Round {
 
 function addEntry(): void {
   const round = ensureLastRound();
-  const entry: Entry = { id: nextId++, text: "" };
-  round.entries.push(entry);
+  const entry = createEntry(round);
   render();
-  const textarea = document.querySelector<HTMLTextAreaElement>(
-    `textarea[data-entry-id="${entry.id}"]`
-  );
-  textarea?.focus();
+  focusEntry(entry.id);
 }
 
 function deleteEntry(roundId: number, entryId: number): void {
@@ -227,7 +233,7 @@ function applyThemeButtons(theme: Theme): void {
 themeBtns.forEach((btn) => {
   btn.addEventListener("click", () => {
     const theme = btn.dataset.theme;
-    if (theme === "light" || theme === "dark" || theme === "system") {
+    if (isTheme(theme)) {
       setTheme(theme);
       applyThemeButtons(theme);
     }

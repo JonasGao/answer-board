@@ -5,12 +5,10 @@
 
 export type Theme = "light" | "dark" | "system";
 
-export const THEMES: readonly Theme[] = ["light", "dark", "system"];
-
 const THEME_KEY = "answer-board:theme";
 const FONT_KEY = "answer-board:font";
 
-function isTheme(value: string | null): value is Theme {
+export function isTheme(value: unknown): value is Theme {
   return value === "light" || value === "dark" || value === "system";
 }
 
