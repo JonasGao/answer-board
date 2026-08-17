@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>答题板 Answer Board</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <div id="app">
+      <header class="app-header">
+        <h1 class="app-title">答题板 <span class="app-title-en">Answer Board</span></h1>
+        <div class="app-actions">
+          <button id="copy-all-btn" class="btn btn-primary" type="button">复制全部</button>
+          <button id="clear-all-btn" class="btn btn-danger" type="button">清除</button>
+        </div>
+      </header>
+
+      <main id="board" class="board"></main>
+
+      <footer class="app-footer">
+        <button id="add-entry-btn" class="btn btn-primary" type="button">添加</button>
+        <button id="add-round-btn" class="btn" type="button">新建轮次</button>
+      </footer>
+    </div>
+
+    <div id="toast" class="toast" role="status"></div>
+  </body>
+</html>
