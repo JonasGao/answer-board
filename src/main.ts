@@ -7,6 +7,14 @@ import {
   formatRound,
   roundTitle,
 } from "./format";
+import {
+  type Theme,
+  initPrefs,
+  loadFont,
+  loadTheme,
+  setFont,
+  setTheme,
+} from "./prefs";
 
 let nextId = 1;
 const rounds: Round[] = [];
@@ -17,6 +25,8 @@ const copyAllBtn = document.getElementById("copy-all-btn") as HTMLButtonElement;
 const clearAllBtn = document.getElementById("clear-all-btn") as HTMLButtonElement;
 const addEntryBtn = document.getElementById("add-entry-btn") as HTMLButtonElement;
 const addRoundBtn = document.getElementById("add-round-btn") as HTMLButtonElement;
+const themeBtns = document.querySelectorAll<HTMLButtonElement>(".theme-btn");
+const fontInput = document.getElementById("font-input") as HTMLInputElement;
 
 let toastTimer: number | undefined;
 
@@ -33,6 +43,20 @@ function addRound(): Round {
   const round: Round = { id: nextId++, entries: [] };
   rounds.push(round);
   return round;
+}
+
+// "新建轮次": a fresh round that already contains one empty entry, which is
+// focused so it is immediately usable. Kept separate from addRound() so the
+// "添加" path (via ensureLastRound) still creates rounds with no entries.
+function addRoundWithEntry(): void {
+  const round = addRound();
+  const entry: Entry = { id: nextId++, text: "" };
+  round.entries.push(entry);
+  render();
+  const textarea = document.querySelector<HTMLTextAreaElement>(
+    `textarea[data-entry-id="${entry.id}"]`
+  );
+  textarea?.focus();
 }
 
 function ensureLastRound(): Round {
@@ -190,9 +214,32 @@ copyAllBtn.addEventListener("click", () => {
 });
 clearAllBtn.addEventListener("click", clearAll);
 addEntryBtn.addEventListener("click", addEntry);
-addRoundBtn.addEventListener("click", () => {
-  addRound();
-  render();
+addRoundBtn.addEventListener("click", addRoundWithEntry);
+
+function applyThemeButtons(theme: Theme): void {
+  themeBtns.forEach((btn) => {
+    const active = btn.dataset.theme === theme;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", String(active));
+  });
+}
+
+themeBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const theme = btn.dataset.theme;
+    if (theme === "light" || theme === "dark" || theme === "system") {
+      setTheme(theme);
+      applyThemeButtons(theme);
+    }
+  });
 });
+
+fontInput.addEventListener("input", () => {
+  setFont(fontInput.value);
+});
+
+initPrefs();
+applyThemeButtons(loadTheme());
+fontInput.value = loadFont();
 
 render();
