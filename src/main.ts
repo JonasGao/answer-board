@@ -230,7 +230,7 @@ function render(): void {
         row.classList.remove("entry-row-focused");
       });
       textarea.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter" || !event.shiftKey) return;
+        if (event.isComposing || event.key !== "Enter" || !event.shiftKey) return;
         event.preventDefault();
         const next = findNextEntry(roundIndex, entryIndex);
         if (next) {
