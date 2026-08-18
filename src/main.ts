@@ -19,6 +19,8 @@ import {
 
 let nextId = 1;
 const rounds: Round[] = [];
+const collapsedRoundIds = new Set<number>();
+const DEFAULT_ANSWER = "按建议";
 
 const boardEl = document.getElementById("board") as HTMLElement;
 const toastEl = document.getElementById("toast") as HTMLElement;
@@ -47,11 +49,12 @@ function addRound(): Round {
   return round;
 }
 
-// "新建轮次": a fresh round that already contains one empty entry, which is
-// focused so it is immediately usable. Kept separate from addRound() so the
-// "添加" path (via ensureLastRound) still creates rounds with no entries.
+// "新建轮次": a fresh round that already contains one default-answer entry,
+// which is focused so it is immediately usable. Kept separate from addRound()
+// so the "添加" path (via ensureLastRound) still creates rounds with no
+// entries.
 function createEntry(round: Round): Entry {
-  const entry: Entry = { id: nextId++, text: "" };
+  const entry: Entry = { id: nextId++, text: DEFAULT_ANSWER };
   round.entries.push(entry);
   return entry;
 }
@@ -64,23 +67,31 @@ function focusEntry(entryId: number): void {
 }
 
 // Next entry in global order (round by round, entry by entry), skipping
-// empty rounds. Returns null when there is no next entry.
-function findNextEntry(roundIndex: number, entryIndex: number): Entry | null {
+// empty rounds. Returns the round id plus the entry, or null when there is no
+// next entry.
+function findNextEntry(
+  roundIndex: number,
+  entryIndex: number
+): { roundId: number; entry: Entry } | null {
   const round = rounds[roundIndex];
   if (!round) return null;
   if (entryIndex + 1 < round.entries.length) {
-    return round.entries[entryIndex + 1];
+    return { roundId: round.id, entry: round.entries[entryIndex + 1] };
   }
   for (let i = roundIndex + 1; i < rounds.length; i++) {
     const next = rounds[i];
     if (next.entries.length > 0) {
-      return next.entries[0];
+      return { roundId: next.id, entry: next.entries[0] };
     }
   }
   return null;
 }
 
 function addRoundWithEntry(): void {
+  const previous = rounds[rounds.length - 1];
+  if (previous) {
+    collapsedRoundIds.add(previous.id);
+  }
   const round = addRound();
   const entry = createEntry(round);
   render();
@@ -96,6 +107,7 @@ function ensureLastRound(): Round {
 
 function addEntry(): void {
   const round = ensureLastRound();
+  collapsedRoundIds.delete(round.id);
   const entry = createEntry(round);
   render();
   focusEntry(entry.id);
@@ -112,11 +124,13 @@ function deleteRound(roundId: number): void {
   const index = rounds.findIndex((r) => r.id === roundId);
   if (index === -1) return;
   rounds.splice(index, 1);
+  collapsedRoundIds.delete(roundId);
   render();
 }
 
 function clearAll(): void {
   rounds.length = 0;
+  collapsedRoundIds.clear();
   render();
 }
 
@@ -171,13 +185,37 @@ function render(): void {
   rounds.forEach((round, roundIndex) => {
     const section = document.createElement("section");
     section.className = "round";
+    const collapsed = collapsedRoundIds.has(round.id);
+    if (collapsed) {
+      section.classList.add("collapsed");
+    }
 
     const header = document.createElement("div");
     header.className = "round-header";
 
+    const headerLeft = document.createElement("div");
+    headerLeft.className = "round-header-left";
+
+    const toggleBtn = document.createElement("button");
+    toggleBtn.className = "btn btn-small btn-icon round-toggle";
+    toggleBtn.type = "button";
+    toggleBtn.textContent = collapsed ? "▸" : "▾";
+    toggleBtn.title = "折叠/展开";
+    toggleBtn.setAttribute("aria-expanded", String(!collapsed));
+    toggleBtn.addEventListener("click", () => {
+      if (collapsedRoundIds.has(round.id)) {
+        collapsedRoundIds.delete(round.id);
+      } else {
+        collapsedRoundIds.add(round.id);
+      }
+      render();
+    });
+
     const title = document.createElement("h2");
     title.className = "round-title";
     title.textContent = roundTitle(roundIndex);
+
+    headerLeft.append(toggleBtn, title);
 
     const actions = document.createElement("div");
     actions.className = "round-actions";
@@ -200,8 +238,13 @@ function render(): void {
     });
 
     actions.append(copyBtn, deleteBtn);
-    header.append(title, actions);
+    header.append(headerLeft, actions);
     section.appendChild(header);
+
+    if (collapsed) {
+      boardEl.appendChild(section);
+      return;
+    }
 
     const entriesEl = document.createElement("div");
     entriesEl.className = "entries";
@@ -217,7 +260,7 @@ function render(): void {
       const textarea = document.createElement("textarea");
       textarea.className = "entry-input";
       textarea.rows = 2;
-      textarea.placeholder = "答案…";
+      textarea.placeholder = DEFAULT_ANSWER;
       textarea.dataset.entryId = String(entry.id);
       textarea.value = entry.text;
       textarea.addEventListener("input", () => {
@@ -225,6 +268,9 @@ function render(): void {
       });
       textarea.addEventListener("focus", () => {
         row.classList.add("entry-row-focused");
+        if (textarea.value === DEFAULT_ANSWER) {
+          textarea.select();
+        }
       });
       textarea.addEventListener("blur", () => {
         row.classList.remove("entry-row-focused");
@@ -234,7 +280,11 @@ function render(): void {
         event.preventDefault();
         const next = findNextEntry(roundIndex, entryIndex);
         if (next) {
-          focusEntry(next.id);
+          if (collapsedRoundIds.has(next.roundId)) {
+            collapsedRoundIds.delete(next.roundId);
+            render();
+          }
+          focusEntry(next.entry.id);
         } else {
           void copyRound(round.id);
         }

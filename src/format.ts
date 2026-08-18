@@ -44,21 +44,26 @@ function emitEntryLines(round: Round, startQ: number): string[] {
   return lines;
 }
 
-// Format one round: entries separated by a blank line. Empty round -> "".
+// Format one round: entries separated by a single newline. Empty round -> "".
 export function formatRound(rounds: Round[], roundIndex: number): string {
   const startQ = entriesBeforeRound(rounds, roundIndex);
-  return emitEntryLines(rounds[roundIndex], startQ).join("\n\n");
+  return emitEntryLines(rounds[roundIndex], startQ).join("\n");
 }
 
 // Format everything: each round is prepended with a "Round N" title line,
-// rounds separated by a blank line. Empty rounds still emit their title.
+// followed by a blank line before its entries; rounds separated by a blank
+// line. Empty rounds still emit their title line only.
 export function formatAll(rounds: Round[]): string {
   const blocks: string[] = [];
   let q = 0;
   rounds.forEach((round, roundIndex) => {
-    const blockLines = [roundTitle(roundIndex), ...emitEntryLines(round, q)];
+    const entries = emitEntryLines(round, q);
     q += round.entries.length;
-    blocks.push(blockLines.join("\n\n"));
+    const block =
+      entries.length > 0
+        ? `${roundTitle(roundIndex)}\n\n${entries.join("\n")}`
+        : `${roundTitle(roundIndex)}`;
+    blocks.push(block);
   });
   return blocks.join("\n\n");
 }

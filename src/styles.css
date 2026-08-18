@@ -282,6 +282,16 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+.round-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.round.collapsed .round-header {
+  border-bottom: none;
+}
+
 .round-title {
   margin: 0;
   font-size: 15px;
