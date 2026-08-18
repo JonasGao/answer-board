@@ -1,28 +1,28 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="/src/styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>答题板 Answer Board</title>
+    <title>Answer Board</title>
     <script type="module" src="/src/main.ts" defer></script>
   </head>
 
   <body>
     <div id="app">
       <header class="app-header">
-        <h1 class="app-title">答题板 <span class="app-title-en">Answer Board</span></h1>
+        <h1 class="app-title">Answer Board</h1>
         <div class="header-controls">
           <div class="settings-group">
-            <span class="settings-label">主题</span>
-            <div class="theme-toggle" role="group" aria-label="主题">
-              <button type="button" class="theme-btn" data-theme="light" aria-pressed="false">亮</button>
-              <button type="button" class="theme-btn" data-theme="dark" aria-pressed="false">暗</button>
-              <button type="button" class="theme-btn" data-theme="system" aria-pressed="true">系统</button>
+            <span class="settings-label">Theme</span>
+            <div class="theme-toggle" role="group" aria-label="Theme">
+              <button type="button" class="theme-btn" data-theme="light" aria-pressed="false">Light</button>
+              <button type="button" class="theme-btn" data-theme="dark" aria-pressed="false">Dark</button>
+              <button type="button" class="theme-btn" data-theme="system" aria-pressed="true">System</button>
             </div>
           </div>
           <div class="settings-group">
-            <label class="settings-label" for="font-input">字体</label>
+            <label class="settings-label" for="font-input">Font</label>
             <input
               id="font-input"
               class="font-input"
@@ -32,8 +32,8 @@
             />
           </div>
           <div class="app-actions">
-            <button id="copy-all-btn" class="btn btn-primary" type="button">复制全部</button>
-            <button id="clear-all-btn" class="btn btn-danger" type="button">清除</button>
+            <button id="copy-all-btn" class="btn btn-primary" type="button">Copy All</button>
+            <button id="clear-all-btn" class="btn btn-danger" type="button">Clear</button>
           </div>
         </div>
       </header>
@@ -41,9 +41,9 @@
       <main id="board" class="board"></main>
 
       <footer class="app-footer">
-        <button id="add-entry-btn" class="btn btn-primary" type="button">添加</button>
-        <button id="add-round-btn" class="btn" type="button">新建轮次</button>
-        <button id="copy-latest-btn" class="btn" type="button" title="复制最新批次">复制批次</button>
+        <button id="add-entry-btn" class="btn btn-primary" type="button">Add</button>
+        <button id="add-round-btn" class="btn" type="button">New Round</button>
+        <button id="copy-latest-btn" class="btn" type="button" title="Copy Latest Batch">Copy Batch</button>
       </footer>
     </div>
 

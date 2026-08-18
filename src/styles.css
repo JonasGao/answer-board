@@ -166,13 +166,6 @@ body {
   white-space: nowrap;
 }
 
-.app-title-en {
-  color: var(--muted);
-  font-weight: 400;
-  font-size: 14px;
-  margin-left: 4px;
-}
-
 .app-actions {
   display: flex;
   gap: 8px;

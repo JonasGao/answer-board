@@ -20,7 +20,7 @@ import {
 let nextId = 1;
 const rounds: Round[] = [];
 const collapsedRoundIds = new Set<number>();
-const DEFAULT_ANSWER = "按建议";
+const DEFAULT_ANSWER = "As suggested";
 
 const boardEl = document.getElementById("board") as HTMLElement;
 const toastEl = document.getElementById("toast") as HTMLElement;
@@ -49,9 +49,9 @@ function addRound(): Round {
   return round;
 }
 
-// "新建轮次": a fresh round that already contains one default-answer entry,
+// "New Round": a fresh round that already contains one default-answer entry,
 // which is focused so it is immediately usable. Kept separate from addRound()
-// so the "添加" path (via ensureLastRound) still creates rounds with no
+// so the "Add" path (via ensureLastRound) still creates rounds with no
 // entries.
 function createEntry(round: Round): Entry {
   const entry: Entry = { id: nextId++, text: DEFAULT_ANSWER };
@@ -154,13 +154,13 @@ async function copyRound(roundId: number): Promise<void> {
   const roundIndex = rounds.findIndex((r) => r.id === roundId);
   if (roundIndex === -1) return;
   const ok = await copyText(formatRound(rounds, roundIndex));
-  showToast(ok ? "已复制" : "复制失败");
+  showToast(ok ? "Copied" : "Copy failed");
 }
 
 function copyLatestRound(): void {
   const last = rounds[rounds.length - 1];
   if (!last) {
-    showToast("无批次");
+    showToast("No batch");
     return;
   }
   void copyRound(last.id);
@@ -168,7 +168,7 @@ function copyLatestRound(): void {
 
 async function copyAll(): Promise<void> {
   const ok = await copyText(formatAll(rounds));
-  showToast(ok ? "已复制" : "复制失败");
+  showToast(ok ? "Copied" : "Copy failed");
 }
 
 function render(): void {
@@ -177,7 +177,7 @@ function render(): void {
   if (rounds.length === 0) {
     const hint = document.createElement("p");
     hint.className = "empty-hint";
-    hint.textContent = "点击「添加」或「新建轮次」开始";
+    hint.textContent = "Click Add or New Round to start";
     boardEl.appendChild(hint);
     return;
   }
@@ -200,7 +200,7 @@ function render(): void {
     toggleBtn.className = "btn btn-small btn-icon round-toggle";
     toggleBtn.type = "button";
     toggleBtn.textContent = collapsed ? "▸" : "▾";
-    toggleBtn.title = "折叠/展开";
+    toggleBtn.title = collapsed ? "Expand" : "Collapse";
     toggleBtn.setAttribute("aria-expanded", String(!collapsed));
     toggleBtn.addEventListener("click", () => {
       if (collapsedRoundIds.has(round.id)) {
@@ -223,7 +223,7 @@ function render(): void {
     const copyBtn = document.createElement("button");
     copyBtn.className = "btn btn-small";
     copyBtn.type = "button";
-    copyBtn.textContent = "复制批次";
+    copyBtn.textContent = "Copy Batch";
     copyBtn.addEventListener("click", () => {
       void copyRound(round.id);
     });
@@ -232,7 +232,7 @@ function render(): void {
     deleteBtn.className = "btn btn-small btn-icon";
     deleteBtn.type = "button";
     deleteBtn.textContent = "✕";
-    deleteBtn.title = "删除该轮次";
+    deleteBtn.title = "Delete round";
     deleteBtn.addEventListener("click", () => {
       deleteRound(round.id);
     });
@@ -294,7 +294,7 @@ function render(): void {
       deleteEntryBtn.className = "btn btn-small btn-icon";
       deleteEntryBtn.type = "button";
       deleteEntryBtn.textContent = "✕";
-      deleteEntryBtn.title = "删除该条目";
+      deleteEntryBtn.title = "Delete entry";
       deleteEntryBtn.addEventListener("click", () => {
         deleteEntry(round.id, entry.id);
       });
