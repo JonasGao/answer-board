@@ -12,32 +12,31 @@
     <div id="app">
       <header class="app-header">
         <h1 class="app-title">答题板 <span class="app-title-en">Answer Board</span></h1>
-        <div class="app-actions">
-          <button id="copy-all-btn" class="btn btn-primary" type="button">复制全部</button>
-          <button id="clear-all-btn" class="btn btn-danger" type="button">清除</button>
-        </div>
-      </header>
-
-      <div class="settings-bar">
-        <div class="settings-group">
-          <span class="settings-label">主题</span>
-          <div class="theme-toggle" role="group" aria-label="主题">
-            <button type="button" class="theme-btn" data-theme="light" aria-pressed="false">亮</button>
-            <button type="button" class="theme-btn" data-theme="dark" aria-pressed="false">暗</button>
-            <button type="button" class="theme-btn" data-theme="system" aria-pressed="true">系统</button>
+        <div class="header-controls">
+          <div class="settings-group">
+            <span class="settings-label">主题</span>
+            <div class="theme-toggle" role="group" aria-label="主题">
+              <button type="button" class="theme-btn" data-theme="light" aria-pressed="false">亮</button>
+              <button type="button" class="theme-btn" data-theme="dark" aria-pressed="false">暗</button>
+              <button type="button" class="theme-btn" data-theme="system" aria-pressed="true">系统</button>
+            </div>
+          </div>
+          <div class="settings-group">
+            <label class="settings-label" for="font-input">字体</label>
+            <input
+              id="font-input"
+              class="font-input"
+              type="text"
+              placeholder="'JetBrains Mono', Consolas"
+              spellcheck="false"
+            />
+          </div>
+          <div class="app-actions">
+            <button id="copy-all-btn" class="btn btn-primary" type="button">复制全部</button>
+            <button id="clear-all-btn" class="btn btn-danger" type="button">清除</button>
           </div>
         </div>
-        <div class="settings-group">
-          <label class="settings-label" for="font-input">字体</label>
-          <input
-            id="font-input"
-            class="font-input"
-            type="text"
-            placeholder="'JetBrains Mono', Consolas"
-            spellcheck="false"
-          />
-        </div>
-      </div>
+      </header>
 
       <main id="board" class="board"></main>
 

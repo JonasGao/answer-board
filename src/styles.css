@@ -149,6 +149,14 @@ body {
   padding: 10px 16px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .app-title {
@@ -170,18 +178,7 @@ body {
   gap: 8px;
 }
 
-/* ---------- settings bar ---------- */
-
-.settings-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  padding: 8px 16px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
-}
+/* ---------- settings ---------- */
 
 .settings-group {
   display: flex;
