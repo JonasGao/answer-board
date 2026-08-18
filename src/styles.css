@@ -34,6 +34,8 @@
   --shadow-dark: 0 1px 3px rgba(0, 0, 0, 0.45);
   --toast-bg-light: rgba(24, 28, 34, 0.94);
   --toast-bg-dark: rgba(41, 46, 55, 0.96);
+  --row-focus-light: #eaf1fe;
+  --row-focus-dark: #2a3140;
 
   /* map active palette, default light */
   --bg: var(--bg-light);
@@ -53,6 +55,7 @@
   --btn-border-hover: var(--btn-border-hover-light);
   --shadow: var(--shadow-light);
   --toast-bg: var(--toast-bg-light);
+  --row-focus: var(--row-focus-light);
 
   --radius: 8px;
 
@@ -85,6 +88,7 @@
   --btn-border-hover: var(--btn-border-hover-dark);
   --shadow: var(--shadow-dark);
   --toast-bg: var(--toast-bg-dark);
+  --row-focus: var(--row-focus-dark);
   color-scheme: dark;
 }
 
@@ -111,6 +115,7 @@
     --btn-border-hover: var(--btn-border-hover-dark);
     --shadow: var(--shadow-dark);
     --toast-bg: var(--toast-bg-dark);
+    --row-focus: var(--row-focus-dark);
   }
 }
 
@@ -301,6 +306,14 @@ body {
   display: flex;
   align-items: flex-start;
   gap: 10px;
+  padding: 6px;
+  border-radius: 6px;
+  background-color: transparent;
+  transition: background-color 0.15s ease;
+}
+
+.entry-row-focused {
+  background-color: var(--row-focus);
 }
 
 .entry-label {

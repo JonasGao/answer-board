@@ -26,6 +26,7 @@ const copyAllBtn = document.getElementById("copy-all-btn") as HTMLButtonElement;
 const clearAllBtn = document.getElementById("clear-all-btn") as HTMLButtonElement;
 const addEntryBtn = document.getElementById("add-entry-btn") as HTMLButtonElement;
 const addRoundBtn = document.getElementById("add-round-btn") as HTMLButtonElement;
+const copyLatestBtn = document.getElementById("copy-latest-btn") as HTMLButtonElement;
 const themeBtns = document.querySelectorAll<HTMLButtonElement>(".theme-btn");
 const fontInput = document.getElementById("font-input") as HTMLInputElement;
 
@@ -60,6 +61,23 @@ function focusEntry(entryId: number): void {
     `textarea[data-entry-id="${entryId}"]`
   );
   textarea?.focus();
+}
+
+// Next entry in global order (round by round, entry by entry), skipping
+// empty rounds. Returns null when there is no next entry.
+function findNextEntry(roundIndex: number, entryIndex: number): Entry | null {
+  const round = rounds[roundIndex];
+  if (!round) return null;
+  if (entryIndex + 1 < round.entries.length) {
+    return round.entries[entryIndex + 1];
+  }
+  for (let i = roundIndex + 1; i < rounds.length; i++) {
+    const next = rounds[i];
+    if (next.entries.length > 0) {
+      return next.entries[0];
+    }
+  }
+  return null;
 }
 
 function addRoundWithEntry(): void {
@@ -123,6 +141,15 @@ async function copyRound(roundId: number): Promise<void> {
   if (roundIndex === -1) return;
   const ok = await copyText(formatRound(rounds, roundIndex));
   showToast(ok ? "已复制" : "复制失败");
+}
+
+function copyLatestRound(): void {
+  const last = rounds[rounds.length - 1];
+  if (!last) {
+    showToast("无批次");
+    return;
+  }
+  void copyRound(last.id);
 }
 
 async function copyAll(): Promise<void> {
@@ -196,6 +223,22 @@ function render(): void {
       textarea.addEventListener("input", () => {
         entry.text = textarea.value;
       });
+      textarea.addEventListener("focus", () => {
+        row.classList.add("entry-row-focused");
+      });
+      textarea.addEventListener("blur", () => {
+        row.classList.remove("entry-row-focused");
+      });
+      textarea.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" || !event.shiftKey) return;
+        event.preventDefault();
+        const next = findNextEntry(roundIndex, entryIndex);
+        if (next) {
+          focusEntry(next.id);
+        } else {
+          void copyRound(round.id);
+        }
+      });
 
       const deleteEntryBtn = document.createElement("button");
       deleteEntryBtn.className = "btn btn-small btn-icon";
@@ -221,6 +264,7 @@ copyAllBtn.addEventListener("click", () => {
 clearAllBtn.addEventListener("click", clearAll);
 addEntryBtn.addEventListener("click", addEntry);
 addRoundBtn.addEventListener("click", addRoundWithEntry);
+copyLatestBtn.addEventListener("click", copyLatestRound);
 
 function applyThemeButtons(theme: Theme): void {
   themeBtns.forEach((btn) => {
