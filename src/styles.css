@@ -58,6 +58,16 @@
   --row-focus: var(--row-focus-light);
 
   --radius: 8px;
+  /* uniform control height in the header toolbar (buttons, theme toggle,
+     font input, dialog input) */
+  --control-height: 32px;
+
+  /* font config: families/sizes are applied by prefs.ts via inline CSS
+     custom properties; these are the stylesheet defaults */
+  --input-font-family: inherit;
+  --input-font-size: 15px;
+  --number-font-family: inherit;
+  --number-font-size: 14px;
 
   font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
   font-size: 15px;
@@ -171,6 +181,13 @@ body {
   gap: 8px;
 }
 
+.header-hint {
+  color: var(--muted);
+  font-size: 12px;
+  user-select: none;
+  white-space: nowrap;
+}
+
 /* ---------- settings ---------- */
 
 .settings-group {
@@ -193,7 +210,8 @@ body {
 }
 
 .theme-btn {
-  padding: 4px 14px;
+  height: var(--control-height);
+  padding: 0 14px;
   border: none;
   background: var(--btn-bg);
   color: var(--text);
@@ -221,8 +239,10 @@ body {
 }
 
 .font-input {
-  width: 240px;
-  padding: 5px 10px;
+  flex: 1;
+  min-width: 0;
+  height: var(--control-height);
+  padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--btn-bg);
@@ -244,7 +264,6 @@ body {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
 
 .empty-hint {
@@ -254,49 +273,9 @@ body {
   padding: 48px 0;
 }
 
-/* ---------- round ---------- */
-
-.round {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-}
-
-.round-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.round-header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.round.collapsed .round-header {
-  border-bottom: none;
-}
-
-.round-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.round-actions {
-  display: flex;
-  gap: 6px;
-}
-
 /* ---------- entries ---------- */
 
 .entries {
-  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -320,7 +299,8 @@ body {
   min-width: 42px;
   padding-top: 7px;
   font-weight: 600;
-  font-size: 14px;
+  font-family: var(--number-font-family);
+  font-size: var(--number-font-size);
   color: var(--muted);
   user-select: none;
 }
@@ -333,6 +313,8 @@ body {
   border: 1px solid var(--border);
   border-radius: 6px;
   font: inherit;
+  font-family: var(--input-font-family);
+  font-size: var(--input-font-size);
   line-height: 1.45;
   background: var(--entry-bg);
   color: var(--text);
@@ -347,7 +329,11 @@ body {
 /* ---------- buttons ---------- */
 
 .btn {
-  padding: 6px 14px;
+  height: var(--control-height);
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--btn-bg);
@@ -363,7 +349,8 @@ body {
   border-color: var(--btn-border-hover);
 }
 
-.btn:active {
+.btn:active,
+.btn.btn-pressed {
   background: var(--btn-active);
 }
 
@@ -391,6 +378,7 @@ body {
 }
 
 .btn-small {
+  height: auto;
   padding: 3px 10px;
   font-size: 13px;
 }
@@ -401,14 +389,131 @@ body {
   line-height: 1.3;
 }
 
-/* ---------- footer ---------- */
+/* ---------- renumber dialog ---------- */
 
-.app-footer {
-  display: flex;
-  gap: 8px;
-  padding: 10px 16px;
+.dialog {
+  width: min(360px, 90vw);
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
   background: var(--panel);
-  border-top: 1px solid var(--border);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.dialog-title {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.dialog-text {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.dialog-input {
+  width: 100%;
+  height: var(--control-height);
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--entry-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.dialog-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  background: var(--entry-bg-focus);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* ---------- font settings dialog ---------- */
+
+.font-dialog {
+  width: min(460px, 92vw);
+}
+
+.font-field {
+  margin-top: 14px;
+}
+
+.font-field-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  user-select: none;
+}
+
+.font-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.font-size-input {
+  width: 64px;
+  height: var(--control-height);
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--btn-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: right;
+}
+
+.font-size-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.font-size-unit {
+  color: var(--muted);
+  font-size: 13px;
+  user-select: none;
+}
+
+/* Preview lines render with the same CSS custom properties as the board, so
+   they reflect the live settings without any JS. */
+.font-preview {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: var(--entry-bg);
+  color: var(--text);
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.font-preview-input {
+  font-family: var(--input-font-family);
+  font-size: var(--input-font-size);
+}
+
+.font-preview-number {
+  font-family: var(--number-font-family);
+  font-size: var(--number-font-size);
+  font-weight: 600;
 }
 
 /* ---------- toast ---------- */

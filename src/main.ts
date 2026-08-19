@@ -1,25 +1,25 @@
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { type Entry, entryNumber, formatAll, nextNumber } from "./format";
 import {
-  type Entry,
-  type Round,
-  entryNumber,
-  formatAll,
-  formatRound,
-  roundTitle,
-} from "./format";
-import {
+  MAX_FONT_SIZE,
+  MIN_FONT_SIZE,
   type Theme,
   initPrefs,
   isTheme,
-  loadFont,
+  loadFontSettings,
   loadTheme,
-  setFont,
+  setInputFont,
+  setInputFontSize,
+  setNumberFont,
+  setNumberFontSize,
   setTheme,
+  setUiFont,
 } from "./prefs";
 
 let nextId = 1;
-const rounds: Round[] = [];
-const collapsedRoundIds = new Set<number>();
+// The Q-numbering starts here; Q = startNumber + position in the list.
+let startNumber = 1;
+const entries: Entry[] = [];
 const DEFAULT_ANSWER = "As suggested";
 
 const boardEl = document.getElementById("board") as HTMLElement;
@@ -27,10 +27,22 @@ const toastEl = document.getElementById("toast") as HTMLElement;
 const copyAllBtn = document.getElementById("copy-all-btn") as HTMLButtonElement;
 const clearAllBtn = document.getElementById("clear-all-btn") as HTMLButtonElement;
 const addEntryBtn = document.getElementById("add-entry-btn") as HTMLButtonElement;
-const addRoundBtn = document.getElementById("add-round-btn") as HTMLButtonElement;
-const copyLatestBtn = document.getElementById("copy-latest-btn") as HTMLButtonElement;
+const renumberBtn = document.getElementById("renumber-btn") as HTMLButtonElement;
 const themeBtns = document.querySelectorAll<HTMLButtonElement>(".theme-btn");
-const fontInput = document.getElementById("font-input") as HTMLInputElement;
+
+const renumberDialog = document.getElementById("renumber-dialog") as HTMLDialogElement;
+const renumberInput = document.getElementById("renumber-input") as HTMLInputElement;
+const renumberOkBtn = document.getElementById("renumber-ok") as HTMLButtonElement;
+const renumberCancelBtn = document.getElementById("renumber-cancel") as HTMLButtonElement;
+
+const fontSettingsBtn = document.getElementById("font-settings-btn") as HTMLButtonElement;
+const fontDialog = document.getElementById("font-dialog") as HTMLDialogElement;
+const fontDialogCloseBtn = document.getElementById("font-dialog-close") as HTMLButtonElement;
+const uiFontInput = document.getElementById("ui-font-input") as HTMLInputElement;
+const inputFontInput = document.getElementById("input-font-input") as HTMLInputElement;
+const inputFontSizeInput = document.getElementById("input-font-size") as HTMLInputElement;
+const numberFontInput = document.getElementById("number-font-input") as HTMLInputElement;
+const numberFontSizeInput = document.getElementById("number-font-size") as HTMLInputElement;
 
 let toastTimer: number | undefined;
 
@@ -43,19 +55,22 @@ function showToast(message: string): void {
   }, 1600);
 }
 
-function addRound(): Round {
-  const round: Round = { id: nextId++, entries: [] };
-  rounds.push(round);
-  return round;
+// Brief synthetic press on the toolbar button that corresponds to a keyboard
+// shortcut (Add / Renumber / Copy All): mirrors the look of a real click via
+// the .btn-pressed class (which shares the :active rule in styles.css), since
+// the shortcut has already run the action itself.
+function pressButton(btn: HTMLElement): void {
+  btn.classList.remove("btn-pressed");
+  void btn.offsetWidth; // restart the press even on repeat presses
+  btn.classList.add("btn-pressed");
+  window.setTimeout(() => {
+    btn.classList.remove("btn-pressed");
+  }, 150);
 }
 
-// "New Round": a fresh round that already contains one default-answer entry,
-// which is focused so it is immediately usable. Kept separate from addRound()
-// so the "Add" path (via ensureLastRound) still creates rounds with no
-// entries.
-function createEntry(round: Round): Entry {
+function createEntry(): Entry {
   const entry: Entry = { id: nextId++, text: DEFAULT_ANSWER };
-  round.entries.push(entry);
+  entries.push(entry);
   return entry;
 }
 
@@ -66,71 +81,22 @@ function focusEntry(entryId: number): void {
   textarea?.focus();
 }
 
-// Next entry in global order (round by round, entry by entry), skipping
-// empty rounds. Returns the round id plus the entry, or null when there is no
-// next entry.
-function findNextEntry(
-  roundIndex: number,
-  entryIndex: number
-): { roundId: number; entry: Entry } | null {
-  const round = rounds[roundIndex];
-  if (!round) return null;
-  if (entryIndex + 1 < round.entries.length) {
-    return { roundId: round.id, entry: round.entries[entryIndex + 1] };
-  }
-  for (let i = roundIndex + 1; i < rounds.length; i++) {
-    const next = rounds[i];
-    if (next.entries.length > 0) {
-      return { roundId: next.id, entry: next.entries[0] };
-    }
-  }
-  return null;
-}
-
-function addRoundWithEntry(): void {
-  const previous = rounds[rounds.length - 1];
-  if (previous) {
-    collapsedRoundIds.add(previous.id);
-  }
-  const round = addRound();
-  const entry = createEntry(round);
-  render();
-  focusEntry(entry.id);
-}
-
-function ensureLastRound(): Round {
-  if (rounds.length === 0) {
-    return addRound();
-  }
-  return rounds[rounds.length - 1];
-}
-
 function addEntry(): void {
-  const round = ensureLastRound();
-  collapsedRoundIds.delete(round.id);
-  const entry = createEntry(round);
+  const entry = createEntry();
   render();
   focusEntry(entry.id);
 }
 
-function deleteEntry(roundId: number, entryId: number): void {
-  const round = rounds.find((r) => r.id === roundId);
-  if (!round) return;
-  round.entries = round.entries.filter((e) => e.id !== entryId);
-  render();
-}
-
-function deleteRound(roundId: number): void {
-  const index = rounds.findIndex((r) => r.id === roundId);
+function deleteEntry(entryId: number): void {
+  const index = entries.findIndex((e) => e.id === entryId);
   if (index === -1) return;
-  rounds.splice(index, 1);
-  collapsedRoundIds.delete(roundId);
+  entries.splice(index, 1);
   render();
 }
 
 function clearAll(): void {
-  rounds.length = 0;
-  collapsedRoundIds.clear();
+  entries.length = 0;
+  startNumber = 1;
   render();
 }
 
@@ -150,162 +116,129 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-async function copyRound(roundId: number): Promise<void> {
-  const roundIndex = rounds.findIndex((r) => r.id === roundId);
-  if (roundIndex === -1) return;
-  const ok = await copyText(formatRound(rounds, roundIndex));
+async function copyAll(): Promise<void> {
+  const ok = await copyText(formatAll(entries, startNumber));
   showToast(ok ? "Copied" : "Copy failed");
 }
 
-function copyLatestRound(): void {
-  const last = rounds[rounds.length - 1];
-  if (!last) {
-    showToast("No batch");
+// Renumber flow (Alt+Enter / Renumber button): ask for the new start number
+// FIRST; only on confirm do we clear everything and rebuild from that number.
+// Cancel, empty input, or a non-positive number are all no-ops.
+function openRenumberDialog(): void {
+  // Default to the next number after the current max (startNumber + count);
+  // with an empty board there is no max, so fall back to the start number.
+  renumberInput.value = String(nextNumber(entries.length, startNumber));
+  renumberDialog.showModal();
+  renumberInput.focus();
+  renumberInput.select();
+}
+
+function confirmRenumber(): void {
+  const value = renumberInput.value.trim();
+  const parsed = /^\d+$/.test(value) ? Number(value) : NaN;
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    renumberDialog.close();
     return;
   }
-  void copyRound(last.id);
-}
-
-async function copyAll(): Promise<void> {
-  const ok = await copyText(formatAll(rounds));
-  showToast(ok ? "Copied" : "Copy failed");
+  renumberDialog.close();
+  entries.length = 0;
+  startNumber = parsed;
+  const entry = createEntry();
+  render();
+  focusEntry(entry.id);
 }
 
 function render(): void {
   boardEl.textContent = "";
 
-  if (rounds.length === 0) {
+  if (entries.length === 0) {
     const hint = document.createElement("p");
     hint.className = "empty-hint";
-    hint.textContent = "Click Add or New Round to start";
+    hint.textContent = "Click Add to start";
     boardEl.appendChild(hint);
     return;
   }
 
-  rounds.forEach((round, roundIndex) => {
-    const section = document.createElement("section");
-    section.className = "round";
-    const collapsed = collapsedRoundIds.has(round.id);
-    if (collapsed) {
-      section.classList.add("collapsed");
-    }
+  const entriesEl = document.createElement("div");
+  entriesEl.className = "entries";
 
-    const header = document.createElement("div");
-    header.className = "round-header";
+  entries.forEach((entry, index) => {
+    const row = document.createElement("div");
+    row.className = "entry-row";
 
-    const headerLeft = document.createElement("div");
-    headerLeft.className = "round-header-left";
+    const label = document.createElement("span");
+    label.className = "entry-label";
+    label.textContent = `Q${entryNumber(startNumber, index)}`;
 
-    const toggleBtn = document.createElement("button");
-    toggleBtn.className = "btn btn-small btn-icon round-toggle";
-    toggleBtn.type = "button";
-    toggleBtn.textContent = collapsed ? "▸" : "▾";
-    toggleBtn.title = collapsed ? "Expand" : "Collapse";
-    toggleBtn.setAttribute("aria-expanded", String(!collapsed));
-    toggleBtn.addEventListener("click", () => {
-      if (collapsedRoundIds.has(round.id)) {
-        collapsedRoundIds.delete(round.id);
-      } else {
-        collapsedRoundIds.add(round.id);
+    const textarea = document.createElement("textarea");
+    textarea.className = "entry-input";
+    textarea.rows = 2;
+    textarea.placeholder = DEFAULT_ANSWER;
+    textarea.dataset.entryId = String(entry.id);
+    textarea.value = entry.text;
+    textarea.addEventListener("input", () => {
+      entry.text = textarea.value;
+    });
+    textarea.addEventListener("focus", () => {
+      row.classList.add("entry-row-focused");
+      if (textarea.value === DEFAULT_ANSWER) {
+        textarea.select();
       }
-      render();
+    });
+    textarea.addEventListener("blur", () => {
+      row.classList.remove("entry-row-focused");
+    });
+    textarea.addEventListener("keydown", (event) => {
+      if (event.isComposing || event.key !== "Enter") return;
+
+      // Ctrl+Enter keeps the default newline; other Ctrl combos are ignored.
+      if (event.ctrlKey) return;
+
+      event.preventDefault();
+
+      if (event.shiftKey && event.altKey) return; // undefined combo
+
+      if (event.shiftKey) {
+        // Shift+Enter: copy all entries, wherever the focus is.
+        void copyAll();
+        pressButton(copyAllBtn);
+        return;
+      }
+
+      if (event.altKey) {
+        // Alt+Enter: renumber (clear all and restart from a chosen number),
+        // wherever the focus is.
+        openRenumberDialog();
+        pressButton(renumberBtn);
+        return;
+      }
+
+      // Enter: next entry, or auto-create one at the end when there is none.
+      const next = entries[index + 1];
+      if (next) {
+        focusEntry(next.id);
+      } else {
+        const entry = createEntry();
+        render();
+        focusEntry(entry.id);
+        pressButton(addEntryBtn);
+      }
     });
 
-    const title = document.createElement("h2");
-    title.className = "round-title";
-    title.textContent = roundTitle(roundIndex);
-
-    headerLeft.append(toggleBtn, title);
-
-    const actions = document.createElement("div");
-    actions.className = "round-actions";
-
-    const copyBtn = document.createElement("button");
-    copyBtn.className = "btn btn-small";
-    copyBtn.type = "button";
-    copyBtn.textContent = "Copy Batch";
-    copyBtn.addEventListener("click", () => {
-      void copyRound(round.id);
+    const deleteEntryBtn = document.createElement("button");
+    deleteEntryBtn.className = "btn btn-small btn-icon";
+    deleteEntryBtn.type = "button";
+    deleteEntryBtn.textContent = "✕";
+    deleteEntryBtn.title = "Delete entry";
+    deleteEntryBtn.addEventListener("click", () => {
+      deleteEntry(entry.id);
     });
 
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "btn btn-small btn-icon";
-    deleteBtn.type = "button";
-    deleteBtn.textContent = "✕";
-    deleteBtn.title = "Delete round";
-    deleteBtn.addEventListener("click", () => {
-      deleteRound(round.id);
-    });
-
-    actions.append(copyBtn, deleteBtn);
-    header.append(headerLeft, actions);
-    section.appendChild(header);
-
-    if (collapsed) {
-      boardEl.appendChild(section);
-      return;
-    }
-
-    const entriesEl = document.createElement("div");
-    entriesEl.className = "entries";
-
-    round.entries.forEach((entry, entryIndex) => {
-      const row = document.createElement("div");
-      row.className = "entry-row";
-
-      const label = document.createElement("span");
-      label.className = "entry-label";
-      label.textContent = `Q${entryNumber(rounds, roundIndex, entryIndex)}`;
-
-      const textarea = document.createElement("textarea");
-      textarea.className = "entry-input";
-      textarea.rows = 2;
-      textarea.placeholder = DEFAULT_ANSWER;
-      textarea.dataset.entryId = String(entry.id);
-      textarea.value = entry.text;
-      textarea.addEventListener("input", () => {
-        entry.text = textarea.value;
-      });
-      textarea.addEventListener("focus", () => {
-        row.classList.add("entry-row-focused");
-        if (textarea.value === DEFAULT_ANSWER) {
-          textarea.select();
-        }
-      });
-      textarea.addEventListener("blur", () => {
-        row.classList.remove("entry-row-focused");
-      });
-      textarea.addEventListener("keydown", (event) => {
-        if (event.isComposing || event.key !== "Enter" || !event.shiftKey) return;
-        event.preventDefault();
-        const next = findNextEntry(roundIndex, entryIndex);
-        if (next) {
-          if (collapsedRoundIds.has(next.roundId)) {
-            collapsedRoundIds.delete(next.roundId);
-            render();
-          }
-          focusEntry(next.entry.id);
-        } else {
-          void copyRound(round.id);
-        }
-      });
-
-      const deleteEntryBtn = document.createElement("button");
-      deleteEntryBtn.className = "btn btn-small btn-icon";
-      deleteEntryBtn.type = "button";
-      deleteEntryBtn.textContent = "✕";
-      deleteEntryBtn.title = "Delete entry";
-      deleteEntryBtn.addEventListener("click", () => {
-        deleteEntry(round.id, entry.id);
-      });
-
-      row.append(label, textarea, deleteEntryBtn);
-      entriesEl.appendChild(row);
-    });
-
-    section.appendChild(entriesEl);
-    boardEl.appendChild(section);
+    row.append(label, textarea, deleteEntryBtn);
+    entriesEl.appendChild(row);
   });
+
+  boardEl.appendChild(entriesEl);
 }
 
 copyAllBtn.addEventListener("click", () => {
@@ -313,8 +246,26 @@ copyAllBtn.addEventListener("click", () => {
 });
 clearAllBtn.addEventListener("click", clearAll);
 addEntryBtn.addEventListener("click", addEntry);
-addRoundBtn.addEventListener("click", addRoundWithEntry);
-copyLatestBtn.addEventListener("click", copyLatestRound);
+renumberBtn.addEventListener("click", openRenumberDialog);
+
+renumberOkBtn.addEventListener("click", confirmRenumber);
+renumberCancelBtn.addEventListener("click", () => renumberDialog.close());
+renumberInput.addEventListener("input", () => {
+  renumberInput.value = renumberInput.value.replace(/\D/g, "");
+});
+renumberInput.addEventListener("keydown", (event) => {
+  if (event.isComposing) return;
+  if (event.key === "Enter") {
+    event.preventDefault();
+    confirmRenumber();
+  }
+});
+renumberDialog.addEventListener("click", (event) => {
+  // Click on the backdrop closes the dialog (cancel = no-op).
+  if (event.target === renumberDialog) {
+    renumberDialog.close();
+  }
+});
 
 function applyThemeButtons(theme: Theme): void {
   themeBtns.forEach((btn) => {
@@ -334,12 +285,64 @@ themeBtns.forEach((btn) => {
   });
 });
 
-fontInput.addEventListener("input", () => {
-  setFont(fontInput.value);
+// Font settings dialog: every change applies live (same as the theme toggle).
+// The preview lines render through the same CSS custom properties as the
+// board, so they update by themselves — no preview code needed.
+function openFontDialog(): void {
+  const settings = loadFontSettings();
+  uiFontInput.value = settings.uiFont;
+  inputFontInput.value = settings.inputFont;
+  inputFontSizeInput.value =
+    settings.inputFontSize === null ? "" : String(settings.inputFontSize);
+  numberFontInput.value = settings.numberFont;
+  numberFontSizeInput.value =
+    settings.numberFontSize === null ? "" : String(settings.numberFontSize);
+  fontDialog.showModal();
+  uiFontInput.focus();
+  uiFontInput.select();
+}
+
+// Font size inputs: empty means "use the default"; values outside the allowed
+// range are ignored until they become valid (so typing "15" via "1" does not
+// apply the intermediate "1").
+function parseFontSize(raw: string): number | null | undefined {
+  const value = raw.trim();
+  if (value === "") return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < MIN_FONT_SIZE || parsed > MAX_FONT_SIZE) {
+    return undefined;
+  }
+  return parsed;
+}
+
+fontSettingsBtn.addEventListener("click", openFontDialog);
+fontDialogCloseBtn.addEventListener("click", () => fontDialog.close());
+fontDialog.addEventListener("click", (event) => {
+  // Click on the backdrop closes the dialog.
+  if (event.target === fontDialog) {
+    fontDialog.close();
+  }
+});
+
+uiFontInput.addEventListener("input", () => {
+  setUiFont(uiFontInput.value);
+});
+inputFontInput.addEventListener("input", () => {
+  setInputFont(inputFontInput.value);
+});
+numberFontInput.addEventListener("input", () => {
+  setNumberFont(numberFontInput.value);
+});
+inputFontSizeInput.addEventListener("input", () => {
+  const size = parseFontSize(inputFontSizeInput.value);
+  if (size !== undefined) setInputFontSize(size);
+});
+numberFontSizeInput.addEventListener("input", () => {
+  const size = parseFontSize(numberFontSizeInput.value);
+  if (size !== undefined) setNumberFontSize(size);
 });
 
 initPrefs();
 applyThemeButtons(loadTheme());
-fontInput.value = loadFont();
 
 render();

@@ -22,30 +22,110 @@
             </div>
           </div>
           <div class="settings-group">
-            <label class="settings-label" for="font-input">Font</label>
-            <input
-              id="font-input"
-              class="font-input"
-              type="text"
-              placeholder="'JetBrains Mono', Consolas"
-              spellcheck="false"
-            />
+            <button id="font-settings-btn" class="btn" type="button" title="Configure fonts">Fonts…</button>
           </div>
           <div class="app-actions">
-            <button id="copy-all-btn" class="btn btn-primary" type="button">Copy All</button>
-            <button id="clear-all-btn" class="btn btn-danger" type="button">Clear</button>
+            <button id="add-entry-btn" class="btn btn-primary" type="button" title="Add entry (Enter at the end)">Add</button>
+            <button id="renumber-btn" class="btn" type="button" title="Clear all and restart numbering from a number (Alt+Enter)">Renumber</button>
+            <button id="copy-all-btn" class="btn btn-primary" type="button" title="Copy all entries (Shift+Enter)">Copy All</button>
+            <button id="clear-all-btn" class="btn btn-danger" type="button" title="Clear all entries">Clear</button>
           </div>
+          <span class="header-hint">Enter next &middot; Shift+Enter copy all &middot; Alt+Enter renumber &middot; Ctrl+Enter newline</span>
         </div>
       </header>
 
       <main id="board" class="board"></main>
-
-      <footer class="app-footer">
-        <button id="add-entry-btn" class="btn btn-primary" type="button">Add</button>
-        <button id="add-round-btn" class="btn" type="button">New Round</button>
-        <button id="copy-latest-btn" class="btn" type="button" title="Copy Latest Batch">Copy Batch</button>
-      </footer>
     </div>
+
+    <dialog id="renumber-dialog" class="dialog">
+      <h2 class="dialog-title">Renumber</h2>
+      <p class="dialog-text">Clear all entries and restart numbering from:</p>
+      <input
+        id="renumber-input"
+        class="dialog-input"
+        type="text"
+        inputmode="numeric"
+        autocomplete="off"
+        spellcheck="false"
+        aria-label="Start number"
+      />
+      <div class="dialog-actions">
+        <button id="renumber-cancel" class="btn" type="button">Cancel</button>
+        <button id="renumber-ok" class="btn btn-primary" type="button">OK</button>
+      </div>
+    </dialog>
+
+    <dialog id="font-dialog" class="dialog font-dialog">
+      <h2 class="dialog-title">Font Settings</h2>
+
+      <div class="font-field">
+        <label class="font-field-label" for="ui-font-input">Interface</label>
+        <input
+          id="ui-font-input"
+          class="font-input"
+          type="text"
+          placeholder="'JetBrains Mono', Consolas"
+          spellcheck="false"
+        />
+        <div class="font-preview font-preview-ui" aria-hidden="true">Interface text</div>
+      </div>
+
+      <div class="font-field">
+        <label class="font-field-label" for="input-font-input">Answer input</label>
+        <div class="font-field-row">
+          <input
+            id="input-font-input"
+            class="font-input"
+            type="text"
+            placeholder="'JetBrains Mono', Consolas"
+            spellcheck="false"
+          />
+          <input
+            id="input-font-size"
+            class="font-size-input"
+            type="number"
+            min="6"
+            max="200"
+            step="1"
+            inputmode="numeric"
+            placeholder="15"
+            aria-label="Answer input font size"
+          />
+          <span class="font-size-unit">px</span>
+        </div>
+        <div class="font-preview font-preview-input" aria-hidden="true">Sample answer</div>
+      </div>
+
+      <div class="font-field">
+        <label class="font-field-label" for="number-font-input">Number</label>
+        <div class="font-field-row">
+          <input
+            id="number-font-input"
+            class="font-input"
+            type="text"
+            placeholder="'JetBrains Mono', Consolas"
+            spellcheck="false"
+          />
+          <input
+            id="number-font-size"
+            class="font-size-input"
+            type="number"
+            min="6"
+            max="200"
+            step="1"
+            inputmode="numeric"
+            placeholder="14"
+            aria-label="Number font size"
+          />
+          <span class="font-size-unit">px</span>
+        </div>
+        <div class="font-preview font-preview-number" aria-hidden="true">Q1</div>
+      </div>
+
+      <div class="dialog-actions">
+        <button id="font-dialog-close" class="btn btn-primary" type="button">Close</button>
+      </div>
+    </dialog>
 
     <div id="toast" class="toast" role="status"></div>
   </body>
