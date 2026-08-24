@@ -32,6 +32,9 @@ const themeBtns = document.querySelectorAll<HTMLButtonElement>(".theme-btn");
 
 const renumberDialog = document.getElementById("renumber-dialog") as HTMLDialogElement;
 const renumberInput = document.getElementById("renumber-input") as HTMLInputElement;
+const renumberStepDownBtn = document.getElementById("renumber-step-down") as HTMLButtonElement;
+const renumberStepUpBtn = document.getElementById("renumber-step-up") as HTMLButtonElement;
+const renumberHintEl = document.getElementById("renumber-hint") as HTMLElement;
 const renumberOkBtn = document.getElementById("renumber-ok") as HTMLButtonElement;
 const renumberCancelBtn = document.getElementById("renumber-cancel") as HTMLButtonElement;
 
@@ -127,17 +130,20 @@ async function copyAll(): Promise<void> {
 function openRenumberDialog(): void {
   // Default to the next number after the current max (startNumber + count);
   // with an empty board there is no max, so fall back to the start number.
-  renumberInput.value = String(nextNumber(entries.length, startNumber));
+  const next = nextNumber(entries.length, startNumber);
+  renumberInput.value = String(next);
+  renumberHintEl.textContent = `Current start: ${startNumber} · Next: ${next}`;
   renumberDialog.showModal();
   renumberInput.focus();
   renumberInput.select();
+  updateRenumberStepper();
 }
 
 function confirmRenumber(): void {
   const value = renumberInput.value.trim();
   const parsed = /^\d+$/.test(value) ? Number(value) : NaN;
   if (!Number.isInteger(parsed) || parsed < 1) {
-    renumberDialog.close();
+    shakeRenumberInput();
     return;
   }
   renumberDialog.close();
@@ -146,6 +152,74 @@ function confirmRenumber(): void {
   const entry = createEntry();
   render();
   focusEntry(entry.id);
+}
+
+// The field only ever holds digits (filtered on input), so a value that does
+// not parse as a positive integer is treated as 1 — the floor.
+function renumberValue(): number {
+  const parsed = /^\d+$/.test(renumberInput.value) ? Number(renumberInput.value) : NaN;
+  return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1;
+}
+
+function updateRenumberStepper(): void {
+  renumberStepDownBtn.disabled = renumberValue() <= 1;
+}
+
+function stepRenumber(delta: number): void {
+  const next = Math.max(1, renumberValue() + delta);
+  renumberInput.value = String(next);
+  renumberInput.focus();
+  updateRenumberStepper();
+}
+
+// Attach one stepper button: the first step fires on pointerdown, holding
+// repeats it, and a plain click with no preceding pointerdown still works
+// (keyboard activation). Shift steps by 10 instead of 1.
+function attachRenumberStepper(btn: HTMLButtonElement, delta: number): void {
+  let timer: number | undefined;
+  let interval: number | undefined;
+  let suppressClick = false;
+
+  const stop = (): void => {
+    window.clearTimeout(timer);
+    window.clearInterval(interval);
+    timer = interval = undefined;
+  };
+
+  btn.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    btn.setPointerCapture(event.pointerId);
+    suppressClick = true;
+    stepRenumber(delta * (event.shiftKey ? 10 : 1));
+    timer = window.setTimeout(() => {
+      interval = window.setInterval(() => stepRenumber(delta), 80);
+    }, 400);
+  });
+  btn.addEventListener("pointerup", stop);
+  btn.addEventListener("pointerleave", stop);
+  btn.addEventListener("pointercancel", stop);
+  btn.addEventListener("click", (event) => {
+    if (suppressClick) {
+      suppressClick = false;
+      event.preventDefault();
+      return;
+    }
+    stepRenumber(delta * (event.shiftKey ? 10 : 1));
+  });
+  btn.addEventListener("keydown", (event) => {
+    if (event.isComposing || (event.key !== "Enter" && event.key !== " ")) return;
+    event.preventDefault();
+    stepRenumber(delta * (event.shiftKey ? 10 : 1));
+  });
+}
+
+// Invalid input (empty / 0 / negative) no longer closes silently: flash the
+// field red and give it a quick shake, then restore.
+function shakeRenumberInput(): void {
+  renumberInput.classList.remove("invalid");
+  void renumberInput.offsetWidth; // restart the animation on repeat shakes
+  renumberInput.classList.add("invalid");
 }
 
 function render(): void {
@@ -252,13 +326,22 @@ renumberOkBtn.addEventListener("click", confirmRenumber);
 renumberCancelBtn.addEventListener("click", () => renumberDialog.close());
 renumberInput.addEventListener("input", () => {
   renumberInput.value = renumberInput.value.replace(/\D/g, "");
+  updateRenumberStepper();
 });
 renumberInput.addEventListener("keydown", (event) => {
   if (event.isComposing) return;
   if (event.key === "Enter") {
     event.preventDefault();
     confirmRenumber();
+    return;
   }
+  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+    event.preventDefault();
+    stepRenumber((event.key === "ArrowUp" ? 1 : -1) * (event.shiftKey ? 10 : 1));
+  }
+});
+renumberInput.addEventListener("animationend", () => {
+  renumberInput.classList.remove("invalid");
 });
 renumberDialog.addEventListener("click", (event) => {
   // Click on the backdrop closes the dialog (cancel = no-op).
@@ -266,6 +349,8 @@ renumberDialog.addEventListener("click", (event) => {
     renumberDialog.close();
   }
 });
+attachRenumberStepper(renumberStepDownBtn, -1);
+attachRenumberStepper(renumberStepUpBtn, 1);
 
 function applyThemeButtons(theme: Theme): void {
   themeBtns.forEach((btn) => {

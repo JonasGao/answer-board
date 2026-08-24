@@ -37,18 +37,36 @@
       <main id="board" class="board"></main>
     </div>
 
-    <dialog id="renumber-dialog" class="dialog">
+    <dialog id="renumber-dialog" class="dialog renumber-dialog">
       <h2 class="dialog-title">Renumber</h2>
-      <p class="dialog-text">Clear all entries and restart numbering from:</p>
-      <input
-        id="renumber-input"
-        class="dialog-input"
-        type="text"
-        inputmode="numeric"
-        autocomplete="off"
-        spellcheck="false"
-        aria-label="Start number"
-      />
+      <div class="renumber-field" role="group" aria-label="Start number">
+        <button
+          id="renumber-step-down"
+          class="stepper-btn"
+          type="button"
+          aria-label="Decrease start number"
+        >
+          −
+        </button>
+        <input
+          id="renumber-input"
+          class="num-input"
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Start number"
+        />
+        <button
+          id="renumber-step-up"
+          class="stepper-btn"
+          type="button"
+          aria-label="Increase start number"
+        >
+          +
+        </button>
+      </div>
+      <p id="renumber-hint" class="renumber-hint" aria-live="polite"></p>
       <div class="dialog-actions">
         <button id="renumber-cancel" class="btn" type="button">Cancel</button>
         <button id="renumber-ok" class="btn btn-primary" type="button">OK</button>

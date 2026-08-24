@@ -35,7 +35,9 @@
   --toast-bg-light: rgba(24, 28, 34, 0.94);
   --toast-bg-dark: rgba(41, 46, 55, 0.96);
   --row-focus-light: #eaf1fe;
+  --num-field-bg-light: #f0f5ff;
   --row-focus-dark: #2a3140;
+  --num-field-bg-dark: #232b3a;
 
   /* map active palette, default light */
   --bg: var(--bg-light);
@@ -56,10 +58,11 @@
   --shadow: var(--shadow-light);
   --toast-bg: var(--toast-bg-light);
   --row-focus: var(--row-focus-light);
+  --num-field-bg: var(--num-field-bg-light);
 
   --radius: 8px;
   /* uniform control height in the header toolbar (buttons, theme toggle,
-     font input, dialog input) */
+     font input) */
   --control-height: 32px;
 
   /* font config: families/sizes are applied by prefs.ts via inline CSS
@@ -99,6 +102,7 @@
   --shadow: var(--shadow-dark);
   --toast-bg: var(--toast-bg-dark);
   --row-focus: var(--row-focus-dark);
+  --num-field-bg: var(--num-field-bg-dark);
   color-scheme: dark;
 }
 
@@ -126,6 +130,7 @@
     --shadow: var(--shadow-dark);
     --toast-bg: var(--toast-bg-dark);
     --row-focus: var(--row-focus-dark);
+  --num-field-bg: var(--num-field-bg-dark);
   }
 }
 
@@ -411,35 +416,111 @@ body {
   font-weight: 600;
 }
 
-.dialog-text {
-  margin: 0 0 12px;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-.dialog-input {
-  width: 100%;
-  height: var(--control-height);
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--entry-bg);
-  color: var(--text);
-  font: inherit;
-  font-size: 14px;
-}
-
-.dialog-input:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
-  background: var(--entry-bg-focus);
-}
-
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 14px;
+}
+
+/* ---------- renumber dialog ---------- */
+
+.renumber-dialog {
+  width: min(400px, 92vw);
+}
+
+.renumber-field {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* Big, unmistakably-numeric start-number field: accent border, tinted
+   background, huge bold digits. The digit family follows the configured
+   number font (--number-font-family, same one as the Q labels). */
+.num-input {
+  width: 200px;
+  height: 64px;
+  padding: 0 12px;
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  background: var(--num-field-bg);
+  color: var(--text);
+  font: inherit;
+  font-family: var(--number-font-family);
+  font-size: 36px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  caret-color: var(--accent);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.num-input:focus {
+  outline: none;
+  border-color: var(--accent-hover);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.num-input.invalid {
+  border-color: var(--danger);
+  animation: num-shake 0.3s ease;
+}
+
+@keyframes num-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+/* Round − / + steppers flanking the field. */
+.stepper-btn {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.stepper-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.stepper-btn:active:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-color: var(--accent-hover);
+  color: var(--accent-hover);
+}
+
+.stepper-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.renumber-hint {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
 }
 
 /* ---------- font settings dialog ---------- */
