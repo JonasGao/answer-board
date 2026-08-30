@@ -1,5 +1,5 @@
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { type Entry, entryNumber, formatAll, nextNumber } from "./format";
+import { type Entry, byNumber, formatAll, nextNumber, parseNumberList } from "./format";
 import {
   MAX_FONT_SIZE,
   MIN_FONT_SIZE,
@@ -17,8 +17,7 @@ import {
 } from "./prefs";
 
 let nextId = 1;
-// The Q-numbering starts here; Q = startNumber + position in the list.
-let startNumber = 1;
+// Entries carry their own Q-number; the array stays sorted by it.
 const entries: Entry[] = [];
 const DEFAULT_ANSWER = "As suggested";
 
@@ -71,8 +70,8 @@ function pressButton(btn: HTMLElement): void {
   }, 150);
 }
 
-function createEntry(): Entry {
-  const entry: Entry = { id: nextId++, text: DEFAULT_ANSWER };
+function createEntry(number: number): Entry {
+  const entry: Entry = { id: nextId++, number, text: DEFAULT_ANSWER };
   entries.push(entry);
   return entry;
 }
@@ -85,7 +84,7 @@ function focusEntry(entryId: number): void {
 }
 
 function addEntry(): void {
-  const entry = createEntry();
+  const entry = createEntry(nextNumber(entries));
   render();
   focusEntry(entry.id);
 }
@@ -99,7 +98,6 @@ function deleteEntry(entryId: number): void {
 
 function clearAll(): void {
   entries.length = 0;
-  startNumber = 1;
   render();
 }
 
@@ -120,56 +118,60 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 async function copyAll(): Promise<void> {
-  const ok = await copyText(formatAll(entries, startNumber));
+  const ok = await copyText(formatAll(entries));
   showToast(ok ? "Copied" : "Copy failed");
 }
 
-// Renumber flow (Alt+Enter / Renumber button): ask for the new start number
-// FIRST; only on confirm do we clear everything and rebuild from that number.
-// Cancel, empty input, or a non-positive number are all no-ops.
+// Renumber flow (Alt+Enter / Renumber button): ask for the list of numbers to
+// answer FIRST; only on confirm do we clear everything and rebuild from that
+// list. Cancel or invalid input is a no-op.
 function openRenumberDialog(): void {
-  // Default to the next number after the current max (startNumber + count);
-  // with an empty board there is no max, so fall back to the start number.
-  const next = nextNumber(entries.length, startNumber);
-  renumberInput.value = String(next);
-  renumberHintEl.textContent = `Current start: ${startNumber} · Next: ${next}`;
+  // Prefill with the next number after the current max (1 on an empty board):
+  // the common "just continue" case, which can then be extended into a list.
+  renumberInput.value = String(nextNumber(entries));
   renumberDialog.showModal();
   renumberInput.focus();
   renumberInput.select();
-  updateRenumberStepper();
+  updateRenumberDialog();
 }
 
 function confirmRenumber(): void {
-  const value = renumberInput.value.trim();
-  const parsed = /^\d+$/.test(value) ? Number(value) : NaN;
-  if (!Number.isInteger(parsed) || parsed < 1) {
+  const parsed = parseNumberList(renumberInput.value);
+  if (!parsed.ok) {
     shakeRenumberInput();
     return;
   }
   renumberDialog.close();
   entries.length = 0;
-  startNumber = parsed;
-  const entry = createEntry();
+  for (const number of parsed.numbers) {
+    createEntry(number);
+  }
   render();
-  focusEntry(entry.id);
+  if (entries.length > 0) focusEntry(entries[0].id);
 }
 
-// The field only ever holds digits (filtered on input), so a value that does
-// not parse as a positive integer is treated as 1 — the floor.
-function renumberValue(): number {
-  const parsed = /^\d+$/.test(renumberInput.value) ? Number(renumberInput.value) : NaN;
-  return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1;
-}
-
-function updateRenumberStepper(): void {
-  renumberStepDownBtn.disabled = renumberValue() <= 1;
+// Steppers only make sense while the input is a single number; a list
+// disables them. While the input parses, the hint previews the board it
+// would build; otherwise it names the duplicate problem or falls back to the
+// next-number suggestion.
+function updateRenumberDialog(): void {
+  const parsed = parseNumberList(renumberInput.value);
+  const single = parsed.ok && parsed.numbers.length === 1 ? parsed.numbers[0] : null;
+  renumberStepDownBtn.disabled = single === null || single <= 1;
+  renumberStepUpBtn.disabled = single === null;
+  renumberHintEl.textContent = !parsed.ok
+    ? parsed.reason === "duplicate"
+      ? "Duplicate numbers — every number must be distinct"
+      : `Next: ${nextNumber(entries)}`
+    : `Board becomes: ${parsed.numbers.map((n) => `Q${n}`).join(" · ")}`;
 }
 
 function stepRenumber(delta: number): void {
-  const next = Math.max(1, renumberValue() + delta);
-  renumberInput.value = String(next);
+  const parsed = parseNumberList(renumberInput.value);
+  if (!parsed.ok || parsed.numbers.length !== 1) return;
+  renumberInput.value = String(Math.max(1, parsed.numbers[0] + delta));
   renumberInput.focus();
-  updateRenumberStepper();
+  updateRenumberDialog();
 }
 
 // Attach one stepper button: the first step fires on pointerdown, holding
@@ -222,6 +224,64 @@ function shakeRenumberInput(): void {
   renumberInput.classList.add("invalid");
 }
 
+// Relabel: swap an entry's number label for a small inline editor. Enter or
+// blur commits (the entry then re-sorts to its new position); Escape cancels.
+// A commit that would collide with an existing number keeps the editor open:
+// via Enter it shakes (plus a toast for the collision case), via click-away
+// it silently restores the label.
+function startRelabel(entry: Entry, label: HTMLButtonElement): void {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.inputMode = "numeric";
+  input.className = "relabel-input";
+  input.ariaLabel = "Entry number";
+  input.value = String(entry.number);
+  label.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let settled = false;
+  const commit = (viaEnter: boolean): void => {
+    if (settled) return;
+    const parsed = /^\d+$/.test(input.value) ? Number(input.value) : NaN;
+    const valid = Number.isInteger(parsed) && parsed >= 1;
+    const collision = valid && entries.some((other) => other.id !== entry.id && other.number === parsed);
+    if (valid && !collision) {
+      settled = true;
+      entry.number = parsed;
+      entries.sort(byNumber);
+      render();
+      focusEntry(entry.id);
+      return;
+    }
+    if (viaEnter) {
+      input.classList.remove("invalid");
+      void input.offsetWidth; // restart the shake even on repeat attempts
+      input.classList.add("invalid");
+      if (collision) showToast("That number is already on the board");
+      return;
+    }
+    settled = true;
+    render(); // click-away with an invalid value just cancels
+  };
+
+  input.addEventListener("input", () => {
+    input.value = input.value.replace(/\D/g, "");
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.isComposing) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commit(true);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      settled = true;
+      render();
+    }
+  });
+  input.addEventListener("blur", () => commit(false));
+}
+
 function render(): void {
   boardEl.textContent = "";
 
@@ -240,9 +300,12 @@ function render(): void {
     const row = document.createElement("div");
     row.className = "entry-row";
 
-    const label = document.createElement("span");
+    const label = document.createElement("button");
+    label.type = "button";
     label.className = "entry-label";
-    label.textContent = `Q${entryNumber(startNumber, index)}`;
+    label.title = "Click to edit number";
+    label.textContent = `Q${entry.number}`;
+    label.addEventListener("click", () => startRelabel(entry, label));
 
     const textarea = document.createElement("textarea");
     textarea.className = "entry-input";
@@ -292,7 +355,7 @@ function render(): void {
       if (next) {
         focusEntry(next.id);
       } else {
-        const entry = createEntry();
+        const entry = createEntry(nextNumber(entries));
         render();
         focusEntry(entry.id);
         pressButton(addEntryBtn);
@@ -325,8 +388,9 @@ renumberBtn.addEventListener("click", openRenumberDialog);
 renumberOkBtn.addEventListener("click", confirmRenumber);
 renumberCancelBtn.addEventListener("click", () => renumberDialog.close());
 renumberInput.addEventListener("input", () => {
-  renumberInput.value = renumberInput.value.replace(/\D/g, "");
-  updateRenumberStepper();
+  // Keep digits and the list separators; everything else is stripped.
+  renumberInput.value = renumberInput.value.replace(/[^\d,\s]/g, "");
+  updateRenumberDialog();
 });
 renumberInput.addEventListener("keydown", (event) => {
   if (event.isComposing) return;

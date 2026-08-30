@@ -300,14 +300,50 @@ body {
   background-color: var(--row-focus);
 }
 
+/* The label is a button: clicking it swaps in the inline relabel editor. */
 .entry-label {
   min-width: 42px;
-  padding-top: 7px;
+  padding: 7px 2px 0;
+  border: none;
+  background: none;
   font-weight: 600;
   font-family: var(--number-font-family);
   font-size: var(--number-font-size);
   color: var(--muted);
+  text-align: left;
+  cursor: pointer;
   user-select: none;
+}
+
+.entry-label:hover {
+  color: var(--accent);
+}
+
+/* Inline editor for relabel: styled to match the Q label it replaces — same
+   --number-font-* custom properties, so it follows the number font settings.
+   em/ch sizing keeps it proportionate at any configured number font size. */
+.relabel-input {
+  width: max(72px, 6ch);
+  margin-top: 5px;
+  padding: 0.1em 0.3em;
+  border: 2px solid var(--accent);
+  border-radius: 6px;
+  background: var(--num-field-bg);
+  color: var(--text);
+  font-family: var(--number-font-family);
+  font-size: var(--number-font-size);
+  font-weight: 600;
+  text-align: center;
+}
+
+.relabel-input:focus {
+  outline: none;
+  border-color: var(--accent-hover);
+}
+
+.relabel-input.invalid {
+  border-color: var(--danger);
+  animation: num-shake 0.3s ease;
 }
 
 .entry-input {

@@ -7,24 +7,30 @@ discards everything.
 ## Features
 
 - **条目 (Entry)** — each entry is one answer slot: a multi-line text area with
-  an auto-assigned label (`Q1`, `Q2`, `Q3`, …). Numbering is derived from the
-  current start number plus the entry's position, so it is always continuous;
-  deleting a middle entry shifts the ones after it.
-- **添加 (Add)** — appends one new entry at the end and focuses it.
-- **重编号 (Renumber)** — clears all entries, asks for a new start number
-  (positive integer only; canceling does nothing), then recreates a single
-  entry with that number. The numbering continues from there.
+  an explicit Q-number of its own. Numbers are unique and the board stays
+  sorted by number; gaps are allowed, so a round can be Q2, Q4, Q5 — e.g. Q2
+  is a question from the previous round that must be answered again. Deleting
+  an entry leaves the other numbers untouched.
+- **添加 (Add)** — appends one new entry at the end with the next number
+  (max on board + 1, or Q1 when empty) and focuses it.
+- **重编号 (Renumber)** — clears all entries, asks for a list of numbers
+  ("2, 4 5"; duplicates reject the whole input), then rebuilds the board from
+  that list in ascending order. A single number keeps the old behavior:
+  restart there with one entry. Prefilled with the next number; canceling
+  does nothing.
+- **改号 (Relabel)** — click an entry's Q-label to edit its number in place;
+  the entry moves to its sorted position. Use it to add a re-answered old
+  number mid-round.
 - **复制全部 (Copy All)** — copies all entries as `Q{n}: {answer}` lines
   separated by single newlines.
-- **清除 (Clear)** — removes all entries and resets numbering to Q1 (no
-  confirmation, per spec).
+- **清除 (Clear)** — removes all entries (no confirmation, per spec).
 - Copy feedback: a brief **Copied** toast.
 
 ## Keyboard shortcuts
 
 - **Enter** — focus the next entry; at the end, creates a new one.
 - **Shift+Enter** — copy all entries.
-- **Alt+Enter** — renumber (clear all and restart from a chosen number).
+- **Alt+Enter** — renumber (clear all and rebuild from a list of numbers).
 - **Ctrl+Enter** — insert a newline in the text area.
 
 ## Development

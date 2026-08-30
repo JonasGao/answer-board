@@ -26,7 +26,7 @@
           </div>
           <div class="app-actions">
             <button id="add-entry-btn" class="btn btn-primary" type="button" title="Add entry (Enter at the end)">Add</button>
-            <button id="renumber-btn" class="btn" type="button" title="Clear all and restart numbering from a number (Alt+Enter)">Renumber</button>
+            <button id="renumber-btn" class="btn" type="button" title="Clear all and rebuild from a list of numbers (Alt+Enter)">Renumber</button>
             <button id="copy-all-btn" class="btn btn-primary" type="button" title="Copy all entries (Shift+Enter)">Copy All</button>
             <button id="clear-all-btn" class="btn btn-danger" type="button" title="Clear all entries">Clear</button>
           </div>
@@ -39,12 +39,12 @@
 
     <dialog id="renumber-dialog" class="dialog renumber-dialog">
       <h2 class="dialog-title">Renumber</h2>
-      <div class="renumber-field" role="group" aria-label="Start number">
+      <div class="renumber-field" role="group" aria-label="Numbers">
         <button
           id="renumber-step-down"
           class="stepper-btn"
           type="button"
-          aria-label="Decrease start number"
+          aria-label="Decrease number"
         >
           −
         </button>
@@ -52,16 +52,16 @@
           id="renumber-input"
           class="num-input"
           type="text"
-          inputmode="numeric"
           autocomplete="off"
           spellcheck="false"
-          aria-label="Start number"
+          placeholder="e.g. 2, 4, 5"
+          aria-label="Numbers"
         />
         <button
           id="renumber-step-up"
           class="stepper-btn"
           type="button"
-          aria-label="Increase start number"
+          aria-label="Increase number"
         >
           +
         </button>
