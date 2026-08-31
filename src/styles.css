@@ -103,11 +103,11 @@ body { margin: 0; background: var(--bg); }
 .empty-title { margin: 0; color: var(--text); font-size: 14px; font-weight: 600; }
 
 .entries { display: flex; flex-direction: column; gap: 8px; }
-.entry-row { display: grid; grid-template-columns: minmax(72px, max-content) minmax(0, 1fr) 34px; align-items: stretch; gap: 8px; min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); transition: border-color 0.14s, background-color 0.14s, box-shadow 0.14s; }
+.entry-row { display: grid; grid-template-columns: 72px minmax(0, 1fr) 34px; align-items: stretch; gap: 8px; min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); transition: border-color 0.14s, background-color 0.14s, box-shadow 0.14s; }
 .entry-row:focus-within { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent); }
-.entry-label { min-width: 0; max-width: 170px; overflow: hidden; padding: 7px 6px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-family: var(--number-font-family); font-size: var(--number-font-size); font-weight: 650; line-height: 1.45; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.entry-label { min-width: 0; max-width: 170px; overflow: hidden; padding: 7px 6px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-family: var(--number-font-family); font-size: var(--number-font-size); font-weight: 650; line-height: 1.45; text-align: center; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .entry-label:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
-.relabel-input { width: min(170px, 100%); min-height: 34px; padding: 3px 6px; border: 1px solid var(--accent); border-radius: 4px; background: var(--panel); color: var(--text); font-family: var(--number-font-family); font-size: var(--number-font-size); font-weight: 650; }
+.relabel-input { width: 100%; min-width: 0; max-width: 170px; min-height: 34px; align-self: stretch; padding: 3px 6px; border: 1px solid var(--accent); border-radius: 4px; background: var(--panel); color: var(--text); font-family: var(--number-font-family); font-size: var(--number-font-size); font-weight: 650; text-align: center; }
 .relabel-input.invalid, .num-input.invalid { border-color: var(--danger); animation: num-shake 0.3s ease; }
 .entry-input { width: 100%; min-width: 0; min-height: 48px; padding: 6px 8px; resize: vertical; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text); font-family: var(--input-font-family); font-size: var(--input-font-size); line-height: 1.45; }
 .entry-input:hover { background: var(--panel); border-color: var(--border); }
@@ -164,7 +164,7 @@ body { margin: 0; background: var(--bg); }
   .btn { padding: 0 8px; }
   .btn-icon { width: 34px; }
   .board { padding: 12px; }
-  .entry-row { grid-template-columns: minmax(56px, max-content) minmax(0, 1fr) 30px; gap: 5px; padding: 5px; }
+  .entry-row { grid-template-columns: 56px minmax(0, 1fr) 30px; gap: 5px; padding: 5px; }
   .entry-label { max-width: 104px; padding: 6px 3px; }
   .delete-entry-btn { width: 30px; height: 30px; opacity: 1; }
   .appearance-dialog, .renumber-dialog { padding: 14px; }
