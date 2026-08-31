@@ -28,6 +28,8 @@ const clearAllBtn = document.getElementById("clear-all-btn") as HTMLButtonElemen
 const addEntryBtn = document.getElementById("add-entry-btn") as HTMLButtonElement;
 const renumberBtn = document.getElementById("renumber-btn") as HTMLButtonElement;
 const themeBtns = document.querySelectorAll<HTMLButtonElement>(".theme-btn");
+const overflowBtn = document.getElementById("overflow-btn") as HTMLButtonElement;
+const overflowMenu = document.getElementById("overflow-menu") as HTMLElement;
 
 const renumberDialog = document.getElementById("renumber-dialog") as HTMLDialogElement;
 const renumberInput = document.getElementById("renumber-input") as HTMLInputElement;
@@ -37,9 +39,10 @@ const renumberHintEl = document.getElementById("renumber-hint") as HTMLElement;
 const renumberOkBtn = document.getElementById("renumber-ok") as HTMLButtonElement;
 const renumberCancelBtn = document.getElementById("renumber-cancel") as HTMLButtonElement;
 
-const fontSettingsBtn = document.getElementById("font-settings-btn") as HTMLButtonElement;
-const fontDialog = document.getElementById("font-dialog") as HTMLDialogElement;
-const fontDialogCloseBtn = document.getElementById("font-dialog-close") as HTMLButtonElement;
+const appearanceBtn = document.getElementById("appearance-btn") as HTMLButtonElement;
+const appearanceDialog = document.getElementById("appearance-dialog") as HTMLDialogElement;
+const appearanceDialogCloseBtn = document.getElementById("appearance-dialog-close") as HTMLButtonElement;
+const appearanceDialogCloseBottomBtn = document.getElementById("appearance-dialog-close-bottom") as HTMLButtonElement;
 const uiFontInput = document.getElementById("ui-font-input") as HTMLInputElement;
 const inputFontInput = document.getElementById("input-font-input") as HTMLInputElement;
 const inputFontSizeInput = document.getElementById("input-font-size") as HTMLInputElement;
@@ -99,6 +102,20 @@ function deleteEntry(entryId: number): void {
 function clearAll(): void {
   entries.length = 0;
   render();
+}
+
+function closeOverflowMenu(returnFocus = false): void {
+  if (overflowMenu.hidden) return;
+  overflowMenu.hidden = true;
+  overflowBtn.setAttribute("aria-expanded", "false");
+  if (returnFocus) overflowBtn.focus();
+}
+
+function toggleOverflowMenu(): void {
+  const willOpen = overflowMenu.hidden;
+  overflowMenu.hidden = !willOpen;
+  overflowBtn.setAttribute("aria-expanded", String(willOpen));
+  if (willOpen) overflowMenu.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus();
 }
 
 async function copyText(text: string): Promise<boolean> {
@@ -286,10 +303,23 @@ function render(): void {
   boardEl.textContent = "";
 
   if (entries.length === 0) {
-    const hint = document.createElement("p");
-    hint.className = "empty-hint";
-    hint.textContent = "Click Add to start";
-    boardEl.appendChild(hint);
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    const mark = document.createElement("div");
+    mark.className = "empty-mark";
+    mark.setAttribute("aria-hidden", "true");
+    mark.textContent = "+";
+    const title = document.createElement("p");
+    title.className = "empty-title";
+    title.textContent = "No answers yet";
+    const add = document.createElement("button");
+    add.className = "btn";
+    add.type = "button";
+    add.textContent = "Add first answer";
+    add.title = "Add first answer";
+    add.addEventListener("click", addEntry);
+    empty.append(mark, title, add);
+    boardEl.appendChild(empty);
     return;
   }
 
@@ -317,13 +347,9 @@ function render(): void {
       entry.text = textarea.value;
     });
     textarea.addEventListener("focus", () => {
-      row.classList.add("entry-row-focused");
       if (textarea.value === DEFAULT_ANSWER) {
         textarea.select();
       }
-    });
-    textarea.addEventListener("blur", () => {
-      row.classList.remove("entry-row-focused");
     });
     textarea.addEventListener("keydown", (event) => {
       if (event.isComposing || event.key !== "Enter") return;
@@ -363,9 +389,10 @@ function render(): void {
     });
 
     const deleteEntryBtn = document.createElement("button");
-    deleteEntryBtn.className = "btn btn-small btn-icon";
+    deleteEntryBtn.className = "delete-entry-btn";
     deleteEntryBtn.type = "button";
     deleteEntryBtn.textContent = "✕";
+    deleteEntryBtn.ariaLabel = "Delete entry";
     deleteEntryBtn.title = "Delete entry";
     deleteEntryBtn.addEventListener("click", () => {
       deleteEntry(entry.id);
@@ -381,9 +408,24 @@ function render(): void {
 copyAllBtn.addEventListener("click", () => {
   void copyAll();
 });
-clearAllBtn.addEventListener("click", clearAll);
+clearAllBtn.addEventListener("click", () => {
+  closeOverflowMenu(true);
+  clearAll();
+});
 addEntryBtn.addEventListener("click", addEntry);
 renumberBtn.addEventListener("click", openRenumberDialog);
+overflowBtn.addEventListener("click", toggleOverflowMenu);
+document.addEventListener("pointerdown", (event) => {
+  if (!overflowMenu.hidden && !event.composedPath().includes(overflowBtn) && !event.composedPath().includes(overflowMenu)) {
+    closeOverflowMenu();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !overflowMenu.hidden) {
+    event.preventDefault();
+    closeOverflowMenu(true);
+  }
+});
 
 renumberOkBtn.addEventListener("click", confirmRenumber);
 renumberCancelBtn.addEventListener("click", () => renumberDialog.close());
@@ -415,6 +457,7 @@ renumberDialog.addEventListener("click", (event) => {
 });
 attachRenumberStepper(renumberStepDownBtn, -1);
 attachRenumberStepper(renumberStepUpBtn, 1);
+renumberDialog.querySelector<HTMLButtonElement>(".dialog-close")?.addEventListener("click", () => renumberDialog.close());
 
 function applyThemeButtons(theme: Theme): void {
   themeBtns.forEach((btn) => {
@@ -437,7 +480,7 @@ themeBtns.forEach((btn) => {
 // Font settings dialog: every change applies live (same as the theme toggle).
 // The preview lines render through the same CSS custom properties as the
 // board, so they update by themselves — no preview code needed.
-function openFontDialog(): void {
+function openAppearanceDialog(): void {
   const settings = loadFontSettings();
   uiFontInput.value = settings.uiFont;
   inputFontInput.value = settings.inputFont;
@@ -446,7 +489,7 @@ function openFontDialog(): void {
   numberFontInput.value = settings.numberFont;
   numberFontSizeInput.value =
     settings.numberFontSize === null ? "" : String(settings.numberFontSize);
-  fontDialog.showModal();
+  appearanceDialog.showModal();
   uiFontInput.focus();
   uiFontInput.select();
 }
@@ -464,12 +507,13 @@ function parseFontSize(raw: string): number | null | undefined {
   return parsed;
 }
 
-fontSettingsBtn.addEventListener("click", openFontDialog);
-fontDialogCloseBtn.addEventListener("click", () => fontDialog.close());
-fontDialog.addEventListener("click", (event) => {
+appearanceBtn.addEventListener("click", openAppearanceDialog);
+appearanceDialogCloseBtn.addEventListener("click", () => appearanceDialog.close());
+appearanceDialogCloseBottomBtn.addEventListener("click", () => appearanceDialog.close());
+appearanceDialog.addEventListener("click", (event) => {
   // Click on the backdrop closes the dialog.
-  if (event.target === fontDialog) {
-    fontDialog.close();
+  if (event.target === appearanceDialog) {
+    appearanceDialog.close();
   }
 });
 
