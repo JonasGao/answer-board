@@ -9,7 +9,7 @@ use axum::{
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, env, net::SocketAddr, sync::Arc};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use tokio::{net::TcpListener, sync::Mutex};
 
 const LOCAL_ID: &str = "local";
@@ -365,7 +365,8 @@ async fn advance_round(
     session_id: String,
     state: tauri::State<'_, SharedState>,
 ) -> Result<(), String> {
-    advance_session(&mut state.lock().await, &session_id)
+    let mut board = state.lock().await;
+    advance_session(&mut board, &session_id)
 }
 
 #[tauri::command]
