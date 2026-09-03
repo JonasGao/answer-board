@@ -11,7 +11,7 @@
     <div id="app">
       <header class="app-header">
         <div class="header-inner">
-          <h1 class="app-title">Answer Board</h1>
+          <nav id="session-tabs" class="session-tabs" role="tablist" aria-label="Grilling sessions"></nav>
           <div class="app-actions" aria-label="Board actions">
             <button id="add-entry-btn" class="btn" type="button" title="Add entry (Enter at the end)">Add</button>
             <button id="renumber-btn" class="btn" type="button" title="Clear all and rebuild from a list of numbers (Alt+Enter)">Renumber</button>
@@ -26,7 +26,6 @@
           </div>
         </div>
       </header>
-      <nav id="session-tabs" class="session-tabs" role="tablist" aria-label="Grilling sessions"></nav>
       <div id="round-bar" class="round-bar" hidden></div>
       <main id="board" class="board" role="tabpanel"></main>
     </div>
