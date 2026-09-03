@@ -18,6 +18,11 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-clipboard-manager = "2"
+axum = "0.8"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["net", "sync"] }
 
 # Smaller, faster-loading release binary (Tauri-recommended).
 [profile.release]
@@ -26,4 +31,3 @@ lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
-

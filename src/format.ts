@@ -3,7 +3,13 @@
 // DOM, no I/O — everything here is a pure function of the entries array (or
 // the raw dialog input) so it can be reasoned about in isolation.
 
-export type Entry = { id: number; number: number; text: string };
+export type Entry = {
+  id: number;
+  number: number;
+  question: string;
+  recommendation: string;
+  text: string;
+};
 
 // The next Q-number to hand out: one past the current max, or 1 on an empty
 // board. Used both as the renumber dialog's prefill and as the number given
