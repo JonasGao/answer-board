@@ -1,0 +1,6 @@
+interface:
+  display_name: "Answer Board Delivery"
+  short_description: "Deliver grilling rounds to Answer Board"
+  default_prompt: "Deliver the current grilling round to Answer Board."
+policy:
+  allow_implicit_invocation: false
