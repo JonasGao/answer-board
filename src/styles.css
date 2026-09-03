@@ -33,6 +33,8 @@
   --input-font-size: 15px;
   --number-font-family: inherit;
   --number-font-size: 14px;
+  --code-font-family: ui-monospace, monospace;
+  --code-font-size: 15px;
   color: var(--text);
   color-scheme: light;
   font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
@@ -116,8 +118,10 @@ body { margin: 0; background: var(--bg); }
 .markdown { overflow-wrap:anywhere; }
 .markdown p { margin:0 0 5px; }
 .markdown ul, .markdown ol { margin:0 0 5px; padding-left:20px; }
-.markdown pre { margin:4px 0 8px; padding:8px; overflow:auto; border-radius:4px; background:var(--bg); }
-.markdown code { font-family: ui-monospace, monospace; }
+.markdown pre { margin:4px 0 8px; padding:8px; overflow:auto; border-radius:6px; background:var(--bg); }
+.markdown code { font-family: var(--code-font-family); font-size: var(--code-font-size); }
+.markdown :not(pre) > code { padding: 1px 4px; border-radius: 4px; background: var(--bg); }
+.markdown pre > code { padding: 0; background: transparent; }
 .recommendation { margin:8px 0; padding:7px 9px; border-left:3px solid var(--accent); background:color-mix(in srgb, var(--accent) 7%, transparent); }
 .entry-row:focus-within { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent); }
 .entry-label { min-width: 0; max-width: 170px; overflow: hidden; padding: 7px 6px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-family: var(--number-font-family); font-size: var(--number-font-size); font-weight: 650; line-height: 1.45; text-align: center; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
@@ -165,7 +169,12 @@ body { margin: 0; background: var(--bg); }
 .font-size-unit { color: var(--muted); font-size: 13px; }
 .appearance-preview { display: grid; grid-template-columns: minmax(64px, max-content) minmax(0, 1fr); gap: 10px; align-items: center; margin-top: 14px; padding: 9px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .preview-number { overflow: hidden; color: var(--muted); font-family: var(--number-font-family); font-size: var(--number-font-size); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.preview-answer { overflow: hidden; font-family: var(--input-font-family); font-size: var(--input-font-size); text-overflow: ellipsis; white-space: nowrap; }
+.preview-answer { width: 100%; min-height: 64px; margin: 0; padding: 6px 8px; resize: none; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text); font-family: var(--input-font-family); font-size: var(--input-font-size); line-height: 1.45; }
+.code-preview { margin-top: 10px; font-family: var(--code-font-family); font-size: var(--code-font-size); }
+.code-preview > code { padding: 1px 4px; border-radius: 4px; background: var(--bg); }
+.code-preview pre { margin: 5px 0 0; padding: 8px; overflow: auto; border-radius: 6px; background: var(--bg); }
+.code-preview code { font-family: inherit; font-size: inherit; }
+.code-preview pre > code { padding: 0; background: transparent; }
 
 .toast { position: fixed; z-index: 20; left: 50%; bottom: 24px; max-width: calc(100vw - 32px); transform: translate(-50%, 8px); padding: 7px 12px; border-radius: var(--radius); background: var(--text); color: var(--panel); font-size: 13px; opacity: 0; pointer-events: none; transition: opacity 0.16s, transform 0.16s; }
 .toast.visible { opacity: 1; transform: translate(-50%, 0); }

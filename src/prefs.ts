@@ -1,5 +1,5 @@
 // Preference handling for the answer board: UI theme (light / dark / system)
-// and the three font groups (interface / answer input / number). Loads
+// and the four font groups (interface / answer input / number / code). Loads
 // persisted values from localStorage on launch, applies them to the document,
 // and persists on change. Only preferences are persisted — answer content
 // stays in memory.
@@ -13,11 +13,15 @@ const INPUT_FONT_KEY = "answer-board:input-font";
 const INPUT_FONT_SIZE_KEY = "answer-board:input-font-size";
 const NUMBER_FONT_KEY = "answer-board:number-font";
 const NUMBER_FONT_SIZE_KEY = "answer-board:number-font-size";
+const CODE_FONT_KEY = "answer-board:code-font";
+const CODE_FONT_SIZE_KEY = "answer-board:code-font-size";
 
 // Stylesheet defaults for the font sizes (mirrored in styles.css :root). An
 // empty size input means "use these defaults".
 export const DEFAULT_INPUT_FONT_SIZE = 15;
 export const DEFAULT_NUMBER_FONT_SIZE = 14;
+export const DEFAULT_CODE_FONT_FAMILY = "ui-monospace, monospace";
+export const DEFAULT_CODE_FONT_SIZE = 15;
 export const MIN_FONT_SIZE = 6;
 export const MAX_FONT_SIZE = 200;
 
@@ -31,6 +35,8 @@ export type FontSettings = {
   inputFontSize: number | null;
   numberFont: string;
   numberFontSize: number | null;
+  codeFont: string;
+  codeFontSize: number | null;
 };
 
 export function isTheme(value: unknown): value is Theme {
@@ -72,6 +78,8 @@ export function loadFontSettings(): FontSettings {
     inputFontSize: readSize(INPUT_FONT_SIZE_KEY),
     numberFont: readString(NUMBER_FONT_KEY),
     numberFontSize: readSize(NUMBER_FONT_SIZE_KEY),
+    codeFont: readString(CODE_FONT_KEY),
+    codeFontSize: readSize(CODE_FONT_SIZE_KEY),
   };
 }
 
@@ -101,6 +109,14 @@ function applyFontSettings(settings: FontSettings): void {
   root.style.setProperty(
     "--number-font-size",
     sizeCss(settings.numberFontSize, DEFAULT_NUMBER_FONT_SIZE)
+  );
+  root.style.setProperty(
+    "--code-font-family",
+    settings.codeFont.trim() || DEFAULT_CODE_FONT_FAMILY,
+  );
+  root.style.setProperty(
+    "--code-font-size",
+    sizeCss(settings.codeFontSize, DEFAULT_CODE_FONT_SIZE),
   );
 }
 
@@ -132,6 +148,8 @@ let current: FontSettings = {
   inputFontSize: null,
   numberFont: "",
   numberFontSize: null,
+  codeFont: "",
+  codeFontSize: null,
 };
 
 export function setUiFont(value: string): void {
@@ -164,6 +182,19 @@ export function setNumberFont(value: string): void {
 export function setNumberFontSize(value: number | null): void {
   current = { ...current, numberFontSize: value };
   writeSize(NUMBER_FONT_SIZE_KEY, value);
+  applyFontSettings(current);
+}
+
+export function setCodeFont(value: string): void {
+  const trimmed = value.trim();
+  current = { ...current, codeFont: trimmed };
+  writeString(CODE_FONT_KEY, trimmed);
+  applyFontSettings(current);
+}
+
+export function setCodeFontSize(value: number | null): void {
+  current = { ...current, codeFontSize: value };
+  writeSize(CODE_FONT_SIZE_KEY, value);
   applyFontSettings(current);
 }
 

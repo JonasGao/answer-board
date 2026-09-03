@@ -18,6 +18,8 @@ import {
   loadTheme,
   setInputFont,
   setInputFontSize,
+  setCodeFont,
+  setCodeFontSize,
   setNumberFont,
   setNumberFontSize,
   setTheme,
@@ -78,6 +80,8 @@ const inputFontInput = $("input-font-input") as HTMLInputElement;
 const inputFontSizeInput = $("input-font-size") as HTMLInputElement;
 const numberFontInput = $("number-font-input") as HTMLInputElement;
 const numberFontSizeInput = $("number-font-size") as HTMLInputElement;
+const codeFontInput = $("code-font-input") as HTMLInputElement;
+const codeFontSizeInput = $("code-font-size") as HTMLInputElement;
 const themeBtns = document.querySelectorAll<HTMLButtonElement>(".theme-btn");
 
 function activeSession(): Session | undefined {
@@ -662,6 +666,9 @@ function openAppearanceDialog(): void {
   numberFontInput.value = settings.numberFont;
   numberFontSizeInput.value =
     settings.numberFontSize === null ? "" : String(settings.numberFontSize);
+  codeFontInput.value = settings.codeFont;
+  codeFontSizeInput.value =
+    settings.codeFontSize === null ? "" : String(settings.codeFontSize);
   appearanceDialog.showModal();
   uiFontInput.focus();
   uiFontInput.select();
@@ -760,6 +767,11 @@ inputFontSizeInput.addEventListener("input", () => {
 numberFontSizeInput.addEventListener("input", () => {
   const value = parseFontSize(numberFontSizeInput.value);
   if (value !== undefined) setNumberFontSize(value);
+});
+codeFontInput.addEventListener("input", () => setCodeFont(codeFontInput.value));
+codeFontSizeInput.addEventListener("input", () => {
+  const value = parseFontSize(codeFontSizeInput.value);
+  if (value !== undefined) setCodeFontSize(value);
 });
 
 initPrefs();

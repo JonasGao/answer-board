@@ -84,10 +84,21 @@
               <span class="font-size-unit">px</span>
             </div>
           </div>
+          <div class="font-field">
+            <label class="field-label" for="code-font-input">Code</label>
+            <div class="font-field-row">
+              <input id="code-font-input" class="font-input" type="text" placeholder="ui-monospace, monospace" spellcheck="false" />
+              <input id="code-font-size" class="font-size-input" type="number" min="6" max="200" step="1" inputmode="numeric" placeholder="15" aria-label="Code font size" />
+              <span class="font-size-unit">px</span>
+            </div>
+          </div>
           <div class="appearance-preview" aria-hidden="true">
             <span class="preview-number">Q12</span>
-            <span class="preview-answer">Sample answer</span>
+            <textarea class="entry-input preview-answer" readonly>Sample answer
+Second line shows the live answer input preview.</textarea>
           </div>
+          <div class="code-preview" aria-hidden="true"><code>inline()</code><pre><code>const answer = "preview";
+console.log(answer);</code></pre></div>
         </section>
       </div>
       <div class="dialog-actions">
