@@ -51,6 +51,8 @@ const pendingSaves = new Map<string, SaveSnapshot>();
 const $ = <T extends HTMLElement>(id: string): T =>
   document.getElementById(id) as T;
 const boardEl = $("board");
+const boardContentEl = $("board-content");
+const localToolbarEl = $("local-toolbar");
 const tabsEl = $("session-tabs");
 const roundBarEl = $("round-bar");
 const toastEl = $("toast");
@@ -58,8 +60,6 @@ const copyAllBtn = $("copy-all-btn") as HTMLButtonElement;
 const clearAllBtn = $("clear-all-btn") as HTMLButtonElement;
 const addEntryBtn = $("add-entry-btn") as HTMLButtonElement;
 const renumberBtn = $("renumber-btn") as HTMLButtonElement;
-const overflowBtn = $("overflow-btn") as HTMLButtonElement;
-const overflowMenu = $("overflow-menu");
 const renumberDialog = $("renumber-dialog") as HTMLDialogElement;
 const renumberInput = $("renumber-input") as HTMLInputElement;
 const renumberStepDownBtn = $("renumber-step-down") as HTMLButtonElement;
@@ -206,6 +206,7 @@ function blankEntry(number: number): Entry {
   };
 }
 function addEntry(): void {
+  if (!activeSession()?.local) return;
   const entry = blankEntry(nextNumber(activeEntries()));
   activeEntries().push(entry);
   void saveEntries();
@@ -218,6 +219,7 @@ function focusEntry(id: number): void {
     ?.focus();
 }
 function deleteEntry(id: number): void {
+  if (!activeSession()?.local) return;
   const current = activeEntries();
   const index = current.findIndex((entry) => entry.id === id);
   if (index < 0) return;
@@ -226,22 +228,10 @@ function deleteEntry(id: number): void {
   render();
 }
 function clearAll(): void {
+  if (!activeSession()?.local) return;
   activeEntries().length = 0;
   void saveEntries();
   render();
-}
-function closeOverflowMenu(returnFocus = false): void {
-  if (overflowMenu.hidden) return;
-  overflowMenu.hidden = true;
-  overflowBtn.setAttribute("aria-expanded", "false");
-  if (returnFocus) overflowBtn.focus();
-}
-function toggleOverflowMenu(): void {
-  const open = overflowMenu.hidden;
-  overflowMenu.hidden = !open;
-  overflowBtn.setAttribute("aria-expanded", String(open));
-  if (open)
-    overflowMenu.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus();
 }
 async function copyAll(): Promise<void> {
   try {
@@ -339,6 +329,7 @@ function renderTabs(): void {
   sessions.forEach((session, index) => {
     const wrap = document.createElement("div");
     wrap.className = "session-tab-wrap";
+    wrap.classList.toggle("active", session.id === activeSessionId);
     wrap.setAttribute("role", "presentation");
     const tab = document.createElement("button");
     tab.type = "button";
@@ -431,6 +422,7 @@ function renderRoundBar(): void {
   roundBarEl.append(message, button);
 }
 function startRelabel(entry: Entry, label: HTMLButtonElement): void {
+  if (!activeSession()?.local) return;
   const input = document.createElement("input");
   input.type = "text";
   input.inputMode = "numeric";
@@ -482,8 +474,10 @@ function startRelabel(entry: Entry, label: HTMLButtonElement): void {
 function render(): void {
   renderTabs();
   renderRoundBar();
-  boardEl.textContent = "";
   const session = activeSession();
+  const isLocal = Boolean(session?.local);
+  localToolbarEl.hidden = !isLocal;
+  boardContentEl.textContent = "";
   const current = session?.current?.entries ?? [];
   if (!current.length) {
     const empty = document.createElement("div");
@@ -500,7 +494,13 @@ function render(): void {
     add.textContent = "Add first answer";
     add.addEventListener("click", addEntry);
     empty.append(mark, title, add);
-    boardEl.append(empty);
+    if (isLocal) boardContentEl.append(empty);
+    else {
+      const message = document.createElement("div");
+      message.className = "empty-state";
+      message.append(mark, title);
+      boardContentEl.append(message);
+    }
     return;
   }
   const list = document.createElement("div");
@@ -508,12 +508,18 @@ function render(): void {
   current.forEach((entry, index) => {
     const row = document.createElement("article");
     row.className = "entry-row";
-    const label = document.createElement("button");
-    label.type = "button";
+    if (!isLocal) row.classList.add("delivery-entry-row");
+    const label = document.createElement(isLocal ? "button" : "span");
+    if (isLocal) (label as HTMLButtonElement).type = "button";
     label.className = "entry-label";
+    if (!isLocal) label.classList.add("entry-label-static");
     label.textContent = `Q${entry.number}`;
-    label.title = "Click to edit number";
-    label.addEventListener("click", () => startRelabel(entry, label));
+    if (isLocal) {
+      label.title = "Click to edit number";
+      label.addEventListener("click", () =>
+        startRelabel(entry, label as HTMLButtonElement),
+      );
+    }
     const content = document.createElement("div");
     content.className = "entry-content";
     if (entry.question) {
@@ -553,12 +559,14 @@ function render(): void {
         void copyAll();
         pressButton(copyAllBtn);
       } else if (event.altKey) {
-        openRenumberDialog();
-        pressButton(renumberBtn);
+        if (session?.local) {
+          openRenumberDialog();
+          pressButton(renumberBtn);
+        }
       } else {
         const next = current[index + 1];
         if (next) focusEntry(next.id);
-        else {
+        else if (session?.local) {
           const added = blankEntry(nextNumber(current));
           current.push(added);
           void saveEntries(session!.id, current);
@@ -569,20 +577,23 @@ function render(): void {
       }
     });
     content.append(textarea);
-    const remove = document.createElement("button");
-    remove.className = "delete-entry-btn";
-    remove.type = "button";
-    remove.textContent = "×";
-    remove.title = "Delete entry";
-    remove.ariaLabel = "Delete entry";
-    remove.addEventListener("click", () => deleteEntry(entry.id));
-    row.append(label, content, remove);
+    if (isLocal) {
+      const remove = document.createElement("button");
+      remove.className = "delete-entry-btn";
+      remove.type = "button";
+      remove.textContent = "×";
+      remove.title = "Delete entry";
+      remove.ariaLabel = "Delete entry";
+      remove.addEventListener("click", () => deleteEntry(entry.id));
+      row.append(label, content, remove);
+    } else row.append(label, content);
     list.append(row);
   });
-  boardEl.append(list);
+  boardContentEl.append(list);
 }
 
 function openRenumberDialog(): void {
+  if (!activeSession()?.local) return;
   renumberInput.value = String(nextNumber(activeEntries()));
   renumberDialog.showModal();
   renumberInput.focus();
@@ -590,6 +601,7 @@ function openRenumberDialog(): void {
   updateRenumberDialog();
 }
 function confirmRenumber(): void {
+  if (!activeSession()?.local) return;
   const parsed = parseNumberList(renumberInput.value);
   if (!parsed.ok) {
     renumberInput.classList.add("invalid");
@@ -684,28 +696,9 @@ function parseFontSize(raw: string): number | null | undefined {
 }
 
 copyAllBtn.addEventListener("click", () => void copyAll());
-clearAllBtn.addEventListener("click", () => {
-  closeOverflowMenu(true);
-  clearAll();
-});
+clearAllBtn.addEventListener("click", clearAll);
 addEntryBtn.addEventListener("click", addEntry);
 renumberBtn.addEventListener("click", openRenumberDialog);
-overflowBtn.addEventListener("click", toggleOverflowMenu);
-document.addEventListener("pointerdown", (event) => {
-  const path = event.composedPath();
-  if (
-    !overflowMenu.hidden &&
-    !path.includes(overflowBtn) &&
-    !path.includes(overflowMenu)
-  )
-    closeOverflowMenu();
-});
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !overflowMenu.hidden) {
-    event.preventDefault();
-    closeOverflowMenu(true);
-  }
-});
 renumberOkBtn.addEventListener("click", confirmRenumber);
 renumberCancelBtn.addEventListener("click", () => renumberDialog.close());
 renumberInput.addEventListener("input", () => {

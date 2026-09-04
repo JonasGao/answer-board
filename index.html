@@ -13,21 +13,23 @@
         <div class="header-inner">
           <nav id="session-tabs" class="session-tabs" role="tablist" aria-label="Grilling sessions"></nav>
           <div class="app-actions" aria-label="Board actions">
-            <button id="add-entry-btn" class="btn" type="button" title="Add entry (Enter at the end)">Add</button>
-            <button id="renumber-btn" class="btn" type="button" title="Clear all and rebuild from a list of numbers (Alt+Enter)">Renumber</button>
             <button id="copy-all-btn" class="btn btn-primary" type="button" title="Copy all entries (Shift+Enter)">Copy All</button>
             <button id="appearance-btn" class="btn btn-icon" type="button" aria-label="Appearance settings" title="Appearance settings">&#9881;</button>
-            <div class="overflow-wrap">
-              <button id="overflow-btn" class="btn btn-icon" type="button" aria-label="More actions" aria-haspopup="menu" aria-expanded="false" title="More actions">&#8942;</button>
-              <div id="overflow-menu" class="overflow-menu" role="menu" aria-label="More actions" hidden>
-                <button id="clear-all-btn" class="menu-item menu-item-danger" type="button" role="menuitem" title="Clear all entries">Clear board</button>
-              </div>
-            </div>
           </div>
         </div>
       </header>
       <div id="round-bar" class="round-bar" hidden></div>
-      <main id="board" class="board" role="tabpanel"></main>
+      <main id="board" class="board" role="tabpanel">
+        <div id="local-toolbar" class="board-toolbar" hidden>
+          <span class="board-toolbar-title">Local board</span>
+          <div class="board-toolbar-actions" aria-label="Local board actions">
+            <button id="add-entry-btn" class="btn" type="button" title="Add entry (Enter at the end)">Add</button>
+            <button id="renumber-btn" class="btn" type="button" title="Clear all and rebuild from a list of numbers (Alt+Enter)">Renumber</button>
+            <button id="clear-all-btn" class="btn btn-danger" type="button" title="Clear all entries">Clear</button>
+          </div>
+        </div>
+        <div id="board-content"></div>
+      </main>
     </div>
 
     <dialog id="renumber-dialog" class="dialog renumber-dialog">
