@@ -68,12 +68,16 @@
           <h3 id="fonts-heading" class="section-label">Fonts</h3>
           <div class="font-field">
             <label class="field-label" for="ui-font-input">Interface</label>
-            <input id="ui-font-input" class="font-input" type="text" placeholder="'JetBrains Mono', Consolas" spellcheck="false" />
+            <div class="font-field-row">
+              <div class="font-autocomplete"><input id="ui-font-input" class="font-input" type="text" placeholder="'JetBrains Mono', Consolas" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ui-font-suggestions" /><div id="ui-font-suggestions" class="font-suggestions" role="listbox" hidden></div></div>
+              <input id="ui-font-size" class="font-size-input" type="number" min="6" max="200" step="1" inputmode="numeric" placeholder="15" aria-label="Interface font size" />
+              <span class="font-size-unit">px</span>
+            </div>
           </div>
           <div class="font-field">
             <label class="field-label" for="input-font-input">Answer input</label>
             <div class="font-field-row">
-              <input id="input-font-input" class="font-input" type="text" placeholder="'JetBrains Mono', Consolas" spellcheck="false" />
+              <div class="font-autocomplete"><input id="input-font-input" class="font-input" type="text" placeholder="'JetBrains Mono', Consolas" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="input-font-suggestions" /><div id="input-font-suggestions" class="font-suggestions" role="listbox" hidden></div></div>
               <input id="input-font-size" class="font-size-input" type="number" min="6" max="200" step="1" inputmode="numeric" placeholder="15" aria-label="Answer input font size" />
               <span class="font-size-unit">px</span>
             </div>
@@ -81,23 +85,31 @@
           <div class="font-field">
             <label class="field-label" for="number-font-input">Question number</label>
             <div class="font-field-row">
-              <input id="number-font-input" class="font-input" type="text" placeholder="'JetBrains Mono', Consolas" spellcheck="false" />
+              <div class="font-autocomplete"><input id="number-font-input" class="font-input" type="text" placeholder="'JetBrains Mono', Consolas" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="number-font-suggestions" /><div id="number-font-suggestions" class="font-suggestions" role="listbox" hidden></div></div>
               <input id="number-font-size" class="font-size-input" type="number" min="6" max="200" step="1" inputmode="numeric" placeholder="14" aria-label="Question number font size" />
               <span class="font-size-unit">px</span>
             </div>
           </div>
           <div class="font-field">
-            <label class="field-label" for="code-font-input">Code</label>
+            <label class="field-label" for="question-font-input">Question &amp; recommendation</label>
             <div class="font-field-row">
-              <input id="code-font-input" class="font-input" type="text" placeholder="ui-monospace, monospace" spellcheck="false" />
-              <input id="code-font-size" class="font-size-input" type="number" min="6" max="200" step="1" inputmode="numeric" placeholder="15" aria-label="Code font size" />
+              <div class="font-autocomplete"><input id="question-font-input" class="font-input" type="text" placeholder="'Segoe UI', sans-serif" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="question-font-suggestions" /><div id="question-font-suggestions" class="font-suggestions" role="listbox" hidden></div></div>
+              <input id="question-font-size" class="font-size-input" type="number" min="6" max="200" step="1" inputmode="numeric" placeholder="15" aria-label="Question font size" />
               <span class="font-size-unit">px</span>
             </div>
+          </div>
+          <div class="font-field">
+            <label class="field-label" for="code-font-input">Code</label>
+            <div class="font-autocomplete"><input id="code-font-input" class="font-input" type="text" placeholder="ui-monospace, monospace" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="code-font-suggestions" /><div id="code-font-suggestions" class="font-suggestions" role="listbox" hidden></div></div>
           </div>
           <div class="appearance-preview" aria-hidden="true">
             <span class="preview-number">Q12</span>
             <textarea class="entry-input preview-answer" readonly>Sample answer
 Second line shows the live answer input preview.</textarea>
+          </div>
+          <div class="question-preview" aria-hidden="true">
+            <div class="preview-question">Sample question with <code>inline()</code></div>
+            <div class="preview-recommendation">Recommended answer with matching size.</div>
           </div>
           <div class="code-preview" aria-hidden="true"><code>inline()</code><pre><code>const answer = "preview";
 console.log(answer);</code></pre></div>

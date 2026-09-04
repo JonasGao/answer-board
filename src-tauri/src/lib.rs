@@ -386,6 +386,45 @@ async fn close_session(
     Ok(())
 }
 
+#[tauri::command]
+fn list_system_fonts() -> Result<Vec<String>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::collections::BTreeMap;
+        use winreg::{
+            enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE},
+            RegKey,
+        };
+        let mut fonts = BTreeMap::new();
+        for root in [
+            RegKey::predef(HKEY_LOCAL_MACHINE),
+            RegKey::predef(HKEY_CURRENT_USER),
+        ] {
+            if let Ok(key) =
+                root.open_subkey("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts")
+            {
+                for value in key.enum_values().flatten() {
+                    let name = value.0;
+                    let family = name
+                        .split_once(" (")
+                        .map_or(name.as_str(), |(family, _)| family)
+                        .trim();
+                    if !family.is_empty() {
+                        fonts
+                            .entry(family.to_lowercase())
+                            .or_insert_with(|| family.to_string());
+                    }
+                }
+            }
+        }
+        return Ok(fonts.into_values().collect());
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(Vec::new())
+    }
+}
+
 async fn serve_http(state: SharedState, app: AppHandle) {
     let bind = env::var("ANSWER_BOARD_HTTP_BIND").unwrap_or_else(|_| DEFAULT_BIND.into());
     let address: SocketAddr = match bind.parse() {
@@ -421,7 +460,8 @@ pub fn run() {
             get_sessions,
             replace_entries,
             advance_round,
-            close_session
+            close_session,
+            list_system_fonts
         ])
         .setup(move |app| {
             tauri::async_runtime::spawn(serve_http(state.clone(), app.handle().clone()));

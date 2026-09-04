@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { activeFontToken, filterFontFamilies, replaceFontToken } from "./font-completion";
 import {
   type Entry,
   byNumber,
@@ -19,11 +20,13 @@ import {
   setInputFont,
   setInputFontSize,
   setCodeFont,
-  setCodeFontSize,
   setNumberFont,
   setNumberFontSize,
+  setQuestionFont,
+  setQuestionFontSize,
   setTheme,
   setUiFont,
+  setUiFontSize,
 } from "./prefs";
 
 const LOCAL_ID = "local";
@@ -76,13 +79,19 @@ const appearanceDialogCloseBottomBtn = $(
   "appearance-dialog-close-bottom",
 ) as HTMLButtonElement;
 const uiFontInput = $("ui-font-input") as HTMLInputElement;
+const uiFontSizeInput = $("ui-font-size") as HTMLInputElement;
 const inputFontInput = $("input-font-input") as HTMLInputElement;
 const inputFontSizeInput = $("input-font-size") as HTMLInputElement;
 const numberFontInput = $("number-font-input") as HTMLInputElement;
 const numberFontSizeInput = $("number-font-size") as HTMLInputElement;
+const questionFontInput = $("question-font-input") as HTMLInputElement;
+const questionFontSizeInput = $("question-font-size") as HTMLInputElement;
 const codeFontInput = $("code-font-input") as HTMLInputElement;
-const codeFontSizeInput = $("code-font-size") as HTMLInputElement;
 const themeBtns = document.querySelectorAll<HTMLButtonElement>(".theme-btn");
+
+const fontInputs = [uiFontInput, inputFontInput, numberFontInput, questionFontInput, codeFontInput];
+let systemFonts: string[] | null = null;
+let systemFontsPromise: Promise<void> | null = null;
 
 function activeSession(): Session | undefined {
   return sessions.find((session) => session.id === activeSessionId);
@@ -257,6 +266,7 @@ function appendInline(container: HTMLElement, text: string): void {
     const el = document.createElement(
       token.startsWith("**") ? "strong" : "code",
     );
+    if (token.startsWith("`")) el.className = "inline-code";
     el.textContent = token.startsWith("**")
       ? token.slice(2, -2)
       : token.slice(1, -1);
@@ -278,6 +288,7 @@ function renderMarkdown(raw: string): HTMLElement {
         code = null;
       } else {
         code = document.createElement("pre");
+        code.className = "code-block";
         code.append(document.createElement("code"));
       }
       list = null;
@@ -669,19 +680,87 @@ function applyThemeButtons(theme: Theme): void {
     btn.setAttribute("aria-pressed", String(active));
   });
 }
+function closeFontSuggestions(): void {
+  fontInputs.forEach((input) => {
+    input.setAttribute("aria-expanded", "false");
+    const list = document.getElementById(input.getAttribute("aria-controls")!);
+    if (list) list.hidden = true;
+  });
+}
+function renderFontSuggestions(input: HTMLInputElement): void {
+  const list = document.getElementById(input.getAttribute("aria-controls")!);
+  if (!list || !systemFonts) return;
+  const token = activeFontToken(input.value, input.selectionStart ?? input.value.length);
+  const matches = filterFontFamilies(systemFonts, token.query);
+  list.textContent = "";
+  matches.forEach((family) => {
+    const option = document.createElement("div");
+    option.className = "font-suggestion";
+    option.setAttribute("role", "option");
+    option.textContent = family;
+    option.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      const replacement = replaceFontToken(input.value, token, family);
+      input.value = replacement.value;
+      input.setSelectionRange(replacement.cursor, replacement.cursor);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      closeFontSuggestions();
+    });
+    list.append(option);
+  });
+  const visible = matches.length > 0;
+  list.hidden = !visible;
+  input.setAttribute("aria-expanded", String(visible));
+}
+function attachFontAutocomplete(input: HTMLInputElement): void {
+  input.addEventListener("input", () => renderFontSuggestions(input));
+  input.addEventListener("focus", () => renderFontSuggestions(input));
+  input.addEventListener("keydown", (event) => {
+    const list = document.getElementById(input.getAttribute("aria-controls")!);
+    const options = list ? [...list.querySelectorAll<HTMLElement>("[role=option]")] : [];
+    if (!options.length) return;
+    const active = options.findIndex((option) => option.classList.contains("active"));
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const next = event.key === "ArrowDown"
+        ? (active + 1) % options.length
+        : (active - 1 + options.length) % options.length;
+      options.forEach((option, index) => option.classList.toggle("active", index === next));
+      options[next].scrollIntoView({ block: "nearest" });
+    } else if (event.key === "Enter" || event.key === "Tab") {
+      const option = options[active < 0 ? 0 : active];
+      option.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      if (event.key === "Tab") event.preventDefault();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      closeFontSuggestions();
+    }
+  });
+}
+async function loadSystemFonts(): Promise<void> {
+  if (systemFonts) return;
+  if (systemFontsPromise) return systemFontsPromise;
+  systemFontsPromise = invoke<string[]>("list_system_fonts")
+    .then((fonts) => { systemFonts = fonts; })
+    .catch((error) => { console.warn("System font suggestions unavailable", error); systemFonts = []; })
+    .finally(() => { systemFontsPromise = null; });
+  await systemFontsPromise;
+}
 function openAppearanceDialog(): void {
   const settings = loadFontSettings();
   uiFontInput.value = settings.uiFont;
+  uiFontSizeInput.value = settings.uiFontSize === null ? "" : String(settings.uiFontSize);
   inputFontInput.value = settings.inputFont;
   inputFontSizeInput.value =
     settings.inputFontSize === null ? "" : String(settings.inputFontSize);
   numberFontInput.value = settings.numberFont;
   numberFontSizeInput.value =
     settings.numberFontSize === null ? "" : String(settings.numberFontSize);
+  questionFontInput.value = settings.questionFont;
+  questionFontSizeInput.value = settings.questionFontSize === null ? "" : String(settings.questionFontSize);
   codeFontInput.value = settings.codeFont;
-  codeFontSizeInput.value =
-    settings.codeFontSize === null ? "" : String(settings.codeFontSize);
   appearanceDialog.showModal();
+  void loadSystemFonts();
   uiFontInput.focus();
   uiFontInput.select();
 }
@@ -746,7 +825,12 @@ appearanceDialogCloseBottomBtn.addEventListener("click", () =>
 appearanceDialog.addEventListener("click", (event) => {
   if (event.target === appearanceDialog) appearanceDialog.close();
 });
+appearanceDialog.addEventListener("close", closeFontSuggestions);
 uiFontInput.addEventListener("input", () => setUiFont(uiFontInput.value));
+uiFontSizeInput.addEventListener("input", () => {
+  const value = parseFontSize(uiFontSizeInput.value);
+  if (value !== undefined) setUiFontSize(value);
+});
 inputFontInput.addEventListener("input", () =>
   setInputFont(inputFontInput.value),
 );
@@ -761,11 +845,13 @@ numberFontSizeInput.addEventListener("input", () => {
   const value = parseFontSize(numberFontSizeInput.value);
   if (value !== undefined) setNumberFontSize(value);
 });
-codeFontInput.addEventListener("input", () => setCodeFont(codeFontInput.value));
-codeFontSizeInput.addEventListener("input", () => {
-  const value = parseFontSize(codeFontSizeInput.value);
-  if (value !== undefined) setCodeFontSize(value);
+questionFontInput.addEventListener("input", () => setQuestionFont(questionFontInput.value));
+questionFontSizeInput.addEventListener("input", () => {
+  const value = parseFontSize(questionFontSizeInput.value);
+  if (value !== undefined) setQuestionFontSize(value);
 });
+codeFontInput.addEventListener("input", () => setCodeFont(codeFontInput.value));
+fontInputs.forEach(attachFontAutocomplete);
 
 initPrefs();
 applyThemeButtons(loadTheme());

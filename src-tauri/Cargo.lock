@@ -53,6 +53,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-clipboard-manager",
  "tokio",
+ "winreg",
 ]
 
 [[package]]

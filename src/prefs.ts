@@ -1,5 +1,5 @@
 // Preference handling for the answer board: UI theme (light / dark / system)
-// and the four font groups (interface / answer input / number / code). Loads
+// and the five font groups (interface / answer input / number / question / code). Loads
 // persisted values from localStorage on launch, applies them to the document,
 // and persists on change. Only preferences are persisted — answer content
 // stays in memory.
@@ -9,10 +9,13 @@ export type Theme = "light" | "dark" | "system";
 const THEME_KEY = "answer-board:theme";
 const OLD_FONT_KEY = "answer-board:font";
 const UI_FONT_KEY = "answer-board:ui-font";
+const UI_FONT_SIZE_KEY = "answer-board:ui-font-size";
 const INPUT_FONT_KEY = "answer-board:input-font";
 const INPUT_FONT_SIZE_KEY = "answer-board:input-font-size";
 const NUMBER_FONT_KEY = "answer-board:number-font";
 const NUMBER_FONT_SIZE_KEY = "answer-board:number-font-size";
+const QUESTION_FONT_KEY = "answer-board:question-font";
+const QUESTION_FONT_SIZE_KEY = "answer-board:question-font-size";
 const CODE_FONT_KEY = "answer-board:code-font";
 const CODE_FONT_SIZE_KEY = "answer-board:code-font-size";
 
@@ -20,8 +23,8 @@ const CODE_FONT_SIZE_KEY = "answer-board:code-font-size";
 // empty size input means "use these defaults".
 export const DEFAULT_INPUT_FONT_SIZE = 15;
 export const DEFAULT_NUMBER_FONT_SIZE = 14;
+export const DEFAULT_QUESTION_FONT_SIZE = 15;
 export const DEFAULT_CODE_FONT_FAMILY = "ui-monospace, monospace";
-export const DEFAULT_CODE_FONT_SIZE = 15;
 export const MIN_FONT_SIZE = 6;
 export const MAX_FONT_SIZE = 200;
 
@@ -31,12 +34,14 @@ export const MAX_FONT_SIZE = 200;
 // stylesheet default size".
 export type FontSettings = {
   uiFont: string;
+  uiFontSize: number | null;
   inputFont: string;
   inputFontSize: number | null;
   numberFont: string;
   numberFontSize: number | null;
+  questionFont: string;
+  questionFontSize: number | null;
   codeFont: string;
-  codeFontSize: number | null;
 };
 
 export function isTheme(value: unknown): value is Theme {
@@ -70,16 +75,28 @@ function migrateOldFont(): void {
   localStorage.removeItem(OLD_FONT_KEY);
 }
 
+function migrateCodeFontSize(): void {
+  const legacy = localStorage.getItem(CODE_FONT_SIZE_KEY);
+  if (localStorage.getItem(QUESTION_FONT_SIZE_KEY) === null && legacy !== null) {
+    const value = readSize(CODE_FONT_SIZE_KEY);
+    if (value !== null) localStorage.setItem(QUESTION_FONT_SIZE_KEY, String(value));
+  }
+  localStorage.removeItem(CODE_FONT_SIZE_KEY);
+}
+
 export function loadFontSettings(): FontSettings {
   migrateOldFont();
+  migrateCodeFontSize();
   return {
     uiFont: readString(UI_FONT_KEY),
+    uiFontSize: readSize(UI_FONT_SIZE_KEY),
     inputFont: readString(INPUT_FONT_KEY),
     inputFontSize: readSize(INPUT_FONT_SIZE_KEY),
     numberFont: readString(NUMBER_FONT_KEY),
     numberFontSize: readSize(NUMBER_FONT_SIZE_KEY),
+    questionFont: readString(QUESTION_FONT_KEY),
+    questionFontSize: readSize(QUESTION_FONT_SIZE_KEY),
     codeFont: readString(CODE_FONT_KEY),
-    codeFontSize: readSize(CODE_FONT_SIZE_KEY),
   };
 }
 
@@ -100,6 +117,7 @@ function applyTheme(theme: Theme): void {
 function applyFontSettings(settings: FontSettings): void {
   const root = document.documentElement;
   root.style.fontFamily = settings.uiFont.trim();
+  root.style.setProperty("--ui-font-size", sizeCss(settings.uiFontSize, 15));
   root.style.setProperty("--input-font-family", settings.inputFont.trim() || "inherit");
   root.style.setProperty(
     "--input-font-size",
@@ -110,13 +128,14 @@ function applyFontSettings(settings: FontSettings): void {
     "--number-font-size",
     sizeCss(settings.numberFontSize, DEFAULT_NUMBER_FONT_SIZE)
   );
+  root.style.setProperty("--question-font-family", settings.questionFont.trim() || "inherit");
+  root.style.setProperty(
+    "--question-font-size",
+    sizeCss(settings.questionFontSize, DEFAULT_QUESTION_FONT_SIZE),
+  );
   root.style.setProperty(
     "--code-font-family",
     settings.codeFont.trim() || DEFAULT_CODE_FONT_FAMILY,
-  );
-  root.style.setProperty(
-    "--code-font-size",
-    sizeCss(settings.codeFontSize, DEFAULT_CODE_FONT_SIZE),
   );
 }
 
@@ -144,18 +163,26 @@ function writeSize(key: string, value: number | null): void {
 // can persist and re-apply the full state.
 let current: FontSettings = {
   uiFont: "",
+  uiFontSize: null,
   inputFont: "",
   inputFontSize: null,
   numberFont: "",
   numberFontSize: null,
+  questionFont: "",
+  questionFontSize: null,
   codeFont: "",
-  codeFontSize: null,
 };
 
 export function setUiFont(value: string): void {
   const trimmed = value.trim();
   current = { ...current, uiFont: trimmed };
   writeString(UI_FONT_KEY, trimmed);
+  applyFontSettings(current);
+}
+
+export function setUiFontSize(value: number | null): void {
+  current = { ...current, uiFontSize: value };
+  writeSize(UI_FONT_SIZE_KEY, value);
   applyFontSettings(current);
 }
 
@@ -185,16 +212,23 @@ export function setNumberFontSize(value: number | null): void {
   applyFontSettings(current);
 }
 
+export function setQuestionFont(value: string): void {
+  const trimmed = value.trim();
+  current = { ...current, questionFont: trimmed };
+  writeString(QUESTION_FONT_KEY, trimmed);
+  applyFontSettings(current);
+}
+
+export function setQuestionFontSize(value: number | null): void {
+  current = { ...current, questionFontSize: value };
+  writeSize(QUESTION_FONT_SIZE_KEY, value);
+  applyFontSettings(current);
+}
+
 export function setCodeFont(value: string): void {
   const trimmed = value.trim();
   current = { ...current, codeFont: trimmed };
   writeString(CODE_FONT_KEY, trimmed);
-  applyFontSettings(current);
-}
-
-export function setCodeFontSize(value: number | null): void {
-  current = { ...current, codeFontSize: value };
-  writeSize(CODE_FONT_SIZE_KEY, value);
   applyFontSettings(current);
 }
 
