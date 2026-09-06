@@ -515,6 +515,18 @@ function markAnswered(session: Session, round: Round, entry: Entry): void {
   entry.answered = true;
   void saveEntries(session.id, round.entries, round);
 }
+function markEntryAnswered(
+  session: Session,
+  round: Round,
+  entry: Entry,
+  row: HTMLElement,
+  status: HTMLElement,
+): void {
+  markAnswered(session, round, entry);
+  row.classList.add("answered");
+  status.textContent = "Answered";
+  refreshRoundProgress(round, row);
+}
 function refreshRoundProgress(round: Round, row: HTMLElement): void {
   const panel = row.closest<HTMLElement>(".round-panel");
   if (!panel) return;
@@ -685,14 +697,14 @@ function renderRound(session: Session, round: Round, isLatest: boolean): HTMLEle
     textarea.addEventListener("input", () => {
       if (!editable) return;
       entry.text = textarea.value;
-      markAnswered(session, round, entry);
       void saveEntries(session.id, round.entries, round);
-      row.classList.add("answered");
-      status.textContent = "Answered";
-      refreshRoundProgress(round, row);
     });
     textarea.addEventListener("focus", () => {
       if (editable && textarea.value === DEFAULT_ANSWER) textarea.select();
+    });
+    textarea.addEventListener("blur", () => {
+      if (!editable) return;
+      markEntryAnswered(session, round, entry, row, status);
     });
     textarea.addEventListener("keydown", (event) => {
       if (!editable || event.isComposing || event.key !== "Enter") return;
@@ -708,10 +720,7 @@ function renderRound(session: Session, round: Round, isLatest: boolean): HTMLEle
           pressButton(renumberBtn);
         }
       } else {
-        markAnswered(session, round, entry);
-        row.classList.add("answered");
-        status.textContent = "Answered";
-        refreshRoundProgress(round, row);
+        markEntryAnswered(session, round, entry, row, status);
         const next = round.entries[index + 1];
         if (next) focusEntry(next.id);
         else if (session.local) {

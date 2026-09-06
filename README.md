@@ -68,8 +68,9 @@ that is appropriate for the environment.
   rounds are read-only. A new round automatically folds the previous one.
 - **问题和推荐回答** — delivered entries safely render Markdown above the
   editable answer; raw HTML displays as text. Answers start as `As suggested`.
-- **已答题 (Answered)** — delivered entries start unanswered. Editing an answer
-  or pressing Enter to move on marks that entry answered and dims its row.
+- **已答题 (Answered)** — delivered entries start unanswered. Leaving an answer
+  input (for example by pressing Enter, Tab, or clicking elsewhere) marks that
+  entry answered and dims its row; typing alone does not.
 - **回复 Agent** — sends the complete round back through the waiting socket
   after every entry is marked answered.
 - **停止并返回部分答案** — ends the waiting round and sends a structured
@@ -85,7 +86,8 @@ that is appropriate for the environment.
 ## Keyboard shortcuts
 
 - **Enter** — mark the current entry answered, then focus the next entry; at
-  the end of the local board, create a new one.
+  the end of the local board, create a new one. Other ways of leaving the
+  answer input, such as Tab or clicking elsewhere, also mark it answered.
 - **Shift+Enter** — copy all entries.
 - **Alt+Enter** — renumber the local board.
 - **Ctrl+Enter** — insert a newline in the text area.
