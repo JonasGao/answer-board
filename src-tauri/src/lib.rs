@@ -1,3 +1,4 @@
+use notify_rust::{Notification, NotificationResponse};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -24,6 +25,8 @@ use settings::{
 const LOCAL_ID: &str = "local";
 const LOCAL_ROUND_ID: &str = "local-round";
 const CHANGE_EVENT: &str = "board-changed";
+const NOTIFICATION_OPEN_EVENT: &str = "notification-session-open";
+const NOTIFICATION_OPEN_ACTION: &str = "open-session";
 const DEFAULT_ANSWER: &str = "As suggested";
 const PROTOCOL_VERSION: u8 = 1;
 
@@ -182,6 +185,11 @@ struct BoardChange {
     session_id: String,
     round_id: String,
     status: &'static str,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct NotificationSessionOpen {
+    session_id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -431,13 +439,86 @@ fn result_for(session_id: &str, round: &Round) -> RoundResult {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct DeliveryNotification {
+    session_id: String,
+    session_name: String,
+}
+
 enum DeliveryRegistration {
     Waiting {
         key: RoundKey,
         revision: u64,
         status: &'static str,
+        notification: Option<DeliveryNotification>,
     },
     Finished(RoundResult),
+}
+
+fn notification_response_opens_session(response: &NotificationResponse) -> bool {
+    match response {
+        NotificationResponse::Default => true,
+        NotificationResponse::Action(action) => action == NOTIFICATION_OPEN_ACTION,
+        NotificationResponse::Reply(_) | NotificationResponse::Closed(_) => false,
+    }
+}
+
+#[cfg(windows)]
+fn configure_notification_app_id(notification: &mut Notification) {
+    let Ok(executable) = std::env::current_exe() else {
+        return;
+    };
+    let Some(directory) = executable.parent() else {
+        return;
+    };
+    let separator = std::path::MAIN_SEPARATOR;
+    let path = directory.display().to_string();
+    let is_dev_build = path.ends_with(&format!("{separator}target{separator}debug"))
+        || path.ends_with(&format!("{separator}target{separator}release"));
+    if !is_dev_build {
+        notification.app_id("com.answerboard.desktop");
+    }
+}
+
+#[cfg(not(windows))]
+fn configure_notification_app_id(_notification: &mut Notification) {}
+
+fn send_delivery_notification(app: &AppHandle, notification: DeliveryNotification) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let mut toast = Notification::new();
+        toast
+            .appname("Answer Board")
+            .summary("收到投递")
+            .body(&notification.session_name)
+            .action(NOTIFICATION_OPEN_ACTION, "打开会话");
+        configure_notification_app_id(&mut toast);
+
+        let handle = match toast.show() {
+            Ok(handle) => handle,
+            Err(error) => {
+                eprintln!("could not show delivery notification: {error}");
+                return;
+            }
+        };
+        let session_id = notification.session_id;
+        if let Err(error) = handle.wait_for_response(|response: &NotificationResponse| {
+            if !notification_response_opens_session(response) {
+                return;
+            }
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+            let _ = app.emit(
+                NOTIFICATION_OPEN_EVENT,
+                NotificationSessionOpen { session_id },
+            );
+        }) {
+            eprintln!("could not receive delivery notification action: {error}");
+        }
+    });
 }
 
 fn register_delivery(
@@ -460,16 +541,21 @@ fn register_delivery(
             questions,
         );
         let revision = round.revision;
+        let session_name = session_name.unwrap_or_else(|| session_id.clone());
         state.sessions.push(Session {
             id: session_id.clone(),
-            name: session_name.unwrap_or_else(|| session_id.clone()),
+            name: session_name.clone(),
             local: false,
             rounds: vec![round],
         });
         return Ok(DeliveryRegistration::Waiting {
-            key: (session_id, round_id),
+            key: (session_id.clone(), round_id),
             revision,
             status: "accepted",
+            notification: Some(DeliveryNotification {
+                session_id,
+                session_name,
+            }),
         });
     };
 
@@ -489,6 +575,7 @@ fn register_delivery(
                 key: (session_id, round_id),
                 revision: existing_round.revision,
                 status: "resumed",
+                notification: None,
             }),
             RoundStatus::Draft => Err("draft rounds cannot receive delivery".into()),
         };
@@ -511,9 +598,13 @@ fn register_delivery(
     let revision = round.revision;
     state.sessions[index].rounds.push(round);
     Ok(DeliveryRegistration::Waiting {
-        key: (session_id, round_id),
+        key: (session_id.clone(), round_id),
         revision,
         status: "accepted",
+        notification: Some(DeliveryNotification {
+            session_id,
+            session_name: state.sessions[index].name.clone(),
+        }),
     })
 }
 
@@ -641,7 +732,15 @@ async fn handle_connection(
                             register_delivery(&mut board, parsed.0.clone(), parsed.1.clone(), parsed.2, parsed.3)
                         };
                         match registration {
-                            Ok(DeliveryRegistration::Waiting { key, revision, status }) => {
+                            Ok(DeliveryRegistration::Waiting {
+                                key,
+                                revision,
+                                status,
+                                notification,
+                            }) => {
+                                if let Some(notification) = notification {
+                                    send_delivery_notification(&app, notification);
+                                }
                                 let receiver = hub.subscribe(key.clone()).await;
                                 let _ = app.emit(
                                     CHANGE_EVENT,
@@ -1305,6 +1404,7 @@ mod tests {
             first,
             DeliveryRegistration::Waiting {
                 status: "accepted",
+                notification: Some(_),
                 ..
             }
         ));
@@ -1320,6 +1420,7 @@ mod tests {
             resumed,
             DeliveryRegistration::Waiting {
                 status: "resumed",
+                notification: None,
                 ..
             }
         ));
@@ -1347,6 +1448,25 @@ mod tests {
             )
             .unwrap(),
             DeliveryRegistration::Finished(_)
+        ));
+    }
+
+    #[test]
+    fn notification_response_routes_only_body_or_open_action() {
+        assert!(notification_response_opens_session(
+            &NotificationResponse::Default
+        ));
+        assert!(notification_response_opens_session(
+            &NotificationResponse::Action(NOTIFICATION_OPEN_ACTION.into(),)
+        ));
+        assert!(!notification_response_opens_session(
+            &NotificationResponse::Action("other-action".into(),)
+        ));
+        assert!(!notification_response_opens_session(
+            &NotificationResponse::Reply("not a session open".into(),)
+        ));
+        assert!(!notification_response_opens_session(
+            &NotificationResponse::Closed(notify_rust::CloseReason::Dismissed,)
         ));
     }
 

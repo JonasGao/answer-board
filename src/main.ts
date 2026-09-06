@@ -34,6 +34,7 @@ import {
 const LOCAL_ID = "local";
 const DEFAULT_ANSWER = "As suggested";
 const CHANGE_EVENT = "board-changed";
+const NOTIFICATION_OPEN_EVENT = "notification-session-open";
 type RoundStatus = "draft" | "answering" | "completed" | "stopped";
 type Round = {
   round_id: string;
@@ -49,6 +50,7 @@ type Session = {
   rounds: Round[];
 };
 type BoardChange = { session_id: string; round_id: string; status: string };
+type NotificationSessionOpen = { session_id: string };
 type SaveSnapshot = { roundId: string; revision: number; entries: Entry[] };
 type RoundResult = {
   type: "round_result";
@@ -202,6 +204,26 @@ async function refreshFromEvent(_change: BoardChange): Promise<void> {
   } catch (error) {
     console.error(error);
     showToast("Could not refresh sessions");
+  }
+}
+async function openSessionFromNotification(
+  notification: NotificationSessionOpen,
+): Promise<void> {
+  try {
+    sessions = await invoke<Session[]>("get_sessions");
+    syncNextId();
+    activeSessionId = sessions.some((session) => session.id === notification.session_id)
+      ? notification.session_id
+      : LOCAL_ID;
+    render();
+    tabsEl
+      .querySelector<HTMLButtonElement>(
+        `.session-tab[data-session-id="${CSS.escape(activeSessionId)}"]`,
+      )
+      ?.focus();
+  } catch (error) {
+    console.error(error);
+    showToast("Could not open delivered session");
   }
 }
 function queueRefresh(task: () => Promise<void>): void {
@@ -1112,6 +1134,9 @@ void loadSettings();
 void listen<SettingsView>("service-status-changed", (event) => {
   event.payload.fonts = normalizeFonts(event.payload.fonts);
   renderServiceSettings(event.payload);
+});
+void listen<NotificationSessionOpen>(NOTIFICATION_OPEN_EVENT, (event) => {
+  queueRefresh(() => openSessionFromNotification(event.payload));
 });
 void listen<BoardChange>(CHANGE_EVENT, (event) => {
   queueRefresh(() => refreshFromEvent(event.payload));
