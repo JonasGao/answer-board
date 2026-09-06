@@ -1,3 +1,5 @@
-# LAN round delivery through the Tauri process
+# LAN round delivery through the Tauri process (superseded)
 
-The app accepts grilling rounds through a write-only `POST /api/rounds` endpoint bound to `0.0.0.0:8787` by default, then emits the validated round into the in-memory Tauri board. We chose this small LAN-only ingress because agents need to submit without a browser or shared filesystem; authentication, query endpoints, and persistence remain deliberately out of scope for now.
+This decision described the original write-only HTTP ingress. It is superseded
+by [ADR 0003](0003-bidirectional-socket-delivery.md), which replaces the
+endpoint with a bidirectional TCP JSON socket and round-result responses.

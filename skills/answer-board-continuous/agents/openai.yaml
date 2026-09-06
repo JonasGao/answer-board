@@ -1,0 +1,6 @@
+interface:
+  display_name: "Answer Board Continuous"
+  short_description: "Keep grilling rounds flowing through Answer Board"
+  default_prompt: "Use $answer-board-continuous to deliver every grilling round directly and wait for answers."
+policy:
+  allow_implicit_invocation: false

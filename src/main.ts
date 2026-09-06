@@ -32,16 +32,31 @@ import {
 const LOCAL_ID = "local";
 const DEFAULT_ANSWER = "As suggested";
 const CHANGE_EVENT = "board-changed";
-type Round = { revision: number; entries: Entry[] };
+type RoundStatus = "draft" | "answering" | "completed" | "stopped";
+type Round = {
+  round_id: string;
+  sequence: number;
+  revision: number;
+  entries: Entry[];
+  status: RoundStatus;
+};
 type Session = {
   id: string;
   name: string;
   local: boolean;
-  current: Round | null;
-  pending: Round | null;
+  rounds: Round[];
 };
-type BoardChange = { session_id: string; status: "applied" | "queued" };
-type SaveSnapshot = { revision: number; entries: Entry[] };
+type BoardChange = { session_id: string; round_id: string; status: string };
+type SaveSnapshot = { roundId: string; revision: number; entries: Entry[] };
+type RoundResult = {
+  type: "round_result";
+  protocol: number;
+  session_id: string;
+  round_id: string;
+  revision: number;
+  status: "completed" | "stopped";
+  answers: Array<{ number: number; text: string; answered: boolean }>;
+};
 
 let sessions: Session[] = [];
 let activeSessionId = LOCAL_ID;
@@ -96,8 +111,11 @@ let systemFontsPromise: Promise<void> | null = null;
 function activeSession(): Session | undefined {
   return sessions.find((session) => session.id === activeSessionId);
 }
+function activeRound(session = activeSession()): Round | undefined {
+  return session?.rounds[session.rounds.length - 1];
+}
 function activeEntries(): Entry[] {
-  return activeSession()?.current?.entries ?? [];
+  return activeRound()?.entries ?? [];
 }
 function showToast(message: string): void {
   toastEl.textContent = message;
@@ -116,7 +134,7 @@ function pressButton(btn: HTMLElement): void {
 }
 function syncNextId(): void {
   const max = sessions
-    .flatMap((s) => [s.current?.entries ?? [], s.pending?.entries ?? []])
+    .flatMap((s) => s.rounds.map((round) => round.entries))
     .flat()
     .reduce((value, entry) => Math.max(value, entry.id), 0);
   nextId = Math.max(nextId, max + 1);
@@ -133,31 +151,15 @@ async function refreshAll(): Promise<void> {
     showToast("Could not refresh sessions");
   }
 }
-async function refreshFromEvent(change: BoardChange): Promise<void> {
+async function refreshFromEvent(_change: BoardChange): Promise<void> {
   try {
-    const visibleSessionId = activeSessionId;
-    const old = activeSession();
     const incoming = await invoke<Session[]>("get_sessions");
-    const next = incoming.find((session) => session.id === visibleSessionId);
-    const appliedToVisible =
-      change.session_id === visibleSessionId && change.status === "applied";
-    if (
-      activeSessionId === visibleSessionId &&
-      !appliedToVisible &&
-      old?.current &&
-      next
-    )
-      next.current = old.current;
     sessions = incoming;
     syncNextId();
     if (!sessions.some((session) => session.id === activeSessionId)) {
       activeSessionId = LOCAL_ID;
       render();
-    } else if (activeSessionId !== visibleSessionId || appliedToVisible) render();
-    else {
-      renderTabs();
-      renderRoundBar();
-    }
+    } else render();
   } catch (error) {
     console.error(error);
     showToast("Could not refresh sessions");
@@ -169,12 +171,15 @@ function queueRefresh(task: () => Promise<void>): void {
 function saveEntries(
   sessionId = activeSessionId,
   source = activeEntries(),
+  round = activeRound(sessions.find((session) => session.id === sessionId)),
 ): Promise<boolean> {
   const snapshot = structuredClone(source);
-  const revision = sessions.find((session) => session.id === sessionId)?.current
-    ?.revision;
-  if (revision === undefined) return Promise.resolve(false);
-  pendingSaves.set(sessionId, { revision, entries: snapshot });
+  if (!round) return Promise.resolve(false);
+  pendingSaves.set(sessionId, {
+    roundId: round.round_id,
+    revision: round.revision,
+    entries: snapshot,
+  });
   const running = saveChains.get(sessionId);
   if (running) return running;
   const current = (async () => {
@@ -187,6 +192,7 @@ function saveEntries(
         await invoke("replace_entries", {
           payload: {
             session_id: sessionId,
+            round_id: pending.roundId,
             revision: pending.revision,
             entries: pending.entries,
           },
@@ -212,6 +218,7 @@ function blankEntry(number: number): Entry {
     question: "",
     recommendation: "",
     text: DEFAULT_ANSWER,
+    answered: false,
   };
 }
 function addEntry(): void {
@@ -355,11 +362,12 @@ function renderTabs(): void {
     tab.tabIndex = session.id === activeSessionId ? 0 : -1;
     if (session.id === activeSessionId)
       boardEl.setAttribute("aria-labelledby", tab.id);
-    if (session.pending) {
+    const latest = activeRound(session);
+    if (latest?.status === "answering") {
       const badge = document.createElement("span");
       badge.className = "pending-badge";
-      badge.textContent = "1";
-      badge.title = "One pending round";
+      badge.textContent = "…";
+      badge.title = "Waiting for answers";
       tab.append(badge);
     }
     tab.addEventListener("click", () => {
@@ -403,34 +411,9 @@ async function closeSession(id: string): Promise<void> {
     showToast("Could not close session");
   }
 }
-async function advanceRound(): Promise<void> {
-  const session = activeSession();
-  if (!session?.pending) return;
-  if (!(await (saveChains.get(session.id) ?? Promise.resolve(true)))) return;
-  try {
-    await invoke("advance_round", { sessionId: session.id });
-    await refreshAll();
-  } catch (error) {
-    console.error(error);
-    showToast("Could not enter next round");
-  }
-}
 function renderRoundBar(): void {
   roundBarEl.textContent = "";
-  const session = activeSession();
-  if (!session?.pending) {
-    roundBarEl.hidden = true;
-    return;
-  }
-  roundBarEl.hidden = false;
-  const message = document.createElement("span");
-  message.textContent = `A new round with ${session.pending.entries.length} questions is waiting.`;
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "btn btn-primary";
-  button.textContent = "Enter next round";
-  button.addEventListener("click", () => void advanceRound());
-  roundBarEl.append(message, button);
+  roundBarEl.hidden = true;
 }
 function startRelabel(entry: Entry, label: HTMLButtonElement): void {
   if (!activeSession()?.local) return;
@@ -482,15 +465,107 @@ function startRelabel(entry: Entry, label: HTMLButtonElement): void {
   });
   input.addEventListener("blur", () => commit(false));
 }
-function render(): void {
-  renderTabs();
-  renderRoundBar();
-  const session = activeSession();
-  const isLocal = Boolean(session?.local);
-  localToolbarEl.hidden = !isLocal;
-  boardContentEl.textContent = "";
-  const current = session?.current?.entries ?? [];
-  if (!current.length) {
+function roundStatusLabel(status: RoundStatus): string {
+  if (status === "answering") return "Waiting for answers";
+  if (status === "completed") return "Replied";
+  if (status === "stopped") return "Stopped";
+  return "Draft";
+}
+function markAnswered(session: Session, round: Round, entry: Entry): void {
+  if (entry.answered) return;
+  entry.answered = true;
+  void saveEntries(session.id, round.entries, round);
+}
+function refreshRoundProgress(round: Round, row: HTMLElement): void {
+  const panel = row.closest<HTMLElement>(".round-panel");
+  if (!panel) return;
+  const count = round.entries.filter((entry) => entry.answered).length;
+  const meta = panel.querySelector<HTMLElement>("[data-round-meta]");
+  if (meta)
+    meta.textContent = `${roundStatusLabel(round.status)} · ${count}/${round.entries.length} answered`;
+  const reply = panel.querySelector<HTMLButtonElement>("[data-round-reply]");
+  if (reply) reply.disabled = count !== round.entries.length;
+}
+async function replyRound(session: Session, round: Round): Promise<void> {
+  if (!round.entries.every((entry) => entry.answered)) {
+    showToast("Answer every question first");
+    return;
+  }
+  if (!(await saveEntries(session.id, round.entries, round))) return;
+  try {
+    await invoke<RoundResult>("reply_round", {
+      payload: {
+        session_id: session.id,
+        round_id: round.round_id,
+        revision: round.revision,
+      },
+    });
+    await refreshAll();
+    showToast("Replied to Agent");
+  } catch (error) {
+    console.error(error);
+    showToast("Could not reply to Agent");
+  }
+}
+async function stopRound(session: Session, round: Round): Promise<void> {
+  if (!(await saveEntries(session.id, round.entries, round))) return;
+  try {
+    await invoke<RoundResult>("stop_round", {
+      payload: {
+        session_id: session.id,
+        round_id: round.round_id,
+        revision: round.revision,
+      },
+    });
+    await refreshAll();
+    showToast("Stopped and returned partial answers");
+  } catch (error) {
+    console.error(error);
+    showToast("Could not stop round");
+  }
+}
+function renderRound(session: Session, round: Round, isLatest: boolean): HTMLElement {
+  const isLocal = session.local;
+  const editable = isLocal
+    ? round.status === "draft"
+    : isLatest && round.status === "answering";
+  const panel = document.createElement("details");
+  panel.className = "round-panel";
+  panel.open = isLocal || isLatest;
+  panel.classList.toggle("round-readonly", !editable);
+  const summary = document.createElement("summary");
+  summary.className = "round-summary";
+  const title = document.createElement("span");
+  title.className = "round-title";
+  title.textContent = isLocal ? "Local answers" : `Round ${round.sequence}`;
+  const answeredCount = round.entries.filter((entry) => entry.answered).length;
+  const meta = document.createElement("span");
+  meta.className = "round-meta";
+  meta.dataset.roundMeta = "true";
+  meta.textContent = `${roundStatusLabel(round.status)} · ${answeredCount}/${round.entries.length} answered`;
+  summary.append(title, meta);
+  panel.append(summary);
+
+  const toolbar = document.createElement("div");
+  toolbar.className = "round-toolbar";
+  if (!isLocal && editable) {
+    const reply = document.createElement("button");
+    reply.type = "button";
+    reply.className = "btn btn-primary";
+    reply.dataset.roundReply = "true";
+    reply.textContent = "Reply Agent";
+    reply.disabled = answeredCount !== round.entries.length;
+    reply.addEventListener("click", () => void replyRound(session, round));
+    const stop = document.createElement("button");
+    stop.type = "button";
+    stop.className = "btn btn-danger";
+    stop.textContent = "Stop and return partial";
+    stop.addEventListener("click", () => void stopRound(session, round));
+    toolbar.append(reply, stop);
+  }
+  if (toolbar.childElementCount) panel.append(toolbar);
+
+  if (!round.entries.length) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
     const mark = document.createElement("div");
@@ -505,27 +580,24 @@ function render(): void {
     add.textContent = "Add first answer";
     add.addEventListener("click", addEntry);
     empty.append(mark, title, add);
-    if (isLocal) boardContentEl.append(empty);
-    else {
-      const message = document.createElement("div");
-      message.className = "empty-state";
-      message.append(mark, title);
-      boardContentEl.append(message);
-    }
-    return;
+    panel.append(empty);
+    return panel;
   }
+
   const list = document.createElement("div");
   list.className = "entries";
-  current.forEach((entry, index) => {
+  round.entries.forEach((entry, index) => {
     const row = document.createElement("article");
     row.className = "entry-row";
-    if (!isLocal) row.classList.add("delivery-entry-row");
-    const label = document.createElement(isLocal ? "button" : "span");
-    if (isLocal) (label as HTMLButtonElement).type = "button";
+    row.classList.toggle("delivery-entry-row", !isLocal);
+    row.classList.toggle("answered", entry.answered);
+    row.classList.toggle("entry-readonly", !editable);
+    const label = document.createElement(isLocal && editable ? "button" : "span");
+    if (label instanceof HTMLButtonElement) label.type = "button";
     label.className = "entry-label";
-    if (!isLocal) label.classList.add("entry-label-static");
+    if (!(label instanceof HTMLButtonElement)) label.classList.add("entry-label-static");
     label.textContent = `Q${entry.number}`;
-    if (isLocal) {
+    if (isLocal && editable) {
       label.title = "Click to edit number";
       label.addEventListener("click", () =>
         startRelabel(entry, label as HTMLButtonElement),
@@ -548,21 +620,31 @@ function render(): void {
       recommendation.append(heading, renderMarkdown(entry.recommendation));
       content.append(recommendation);
     }
+    const status = document.createElement("div");
+    status.className = "entry-status";
+    status.textContent = entry.answered ? "Answered" : "Not answered";
+    content.append(status);
     const textarea = document.createElement("textarea");
     textarea.className = "entry-input";
     textarea.rows = 2;
     textarea.placeholder = DEFAULT_ANSWER;
     textarea.dataset.entryId = String(entry.id);
     textarea.value = entry.text;
+    textarea.disabled = !editable;
     textarea.addEventListener("input", () => {
+      if (!editable) return;
       entry.text = textarea.value;
-      void saveEntries(session!.id, current);
+      markAnswered(session, round, entry);
+      void saveEntries(session.id, round.entries, round);
+      row.classList.add("answered");
+      status.textContent = "Answered";
+      refreshRoundProgress(round, row);
     });
     textarea.addEventListener("focus", () => {
-      if (textarea.value === DEFAULT_ANSWER) textarea.select();
+      if (editable && textarea.value === DEFAULT_ANSWER) textarea.select();
     });
     textarea.addEventListener("keydown", (event) => {
-      if (event.isComposing || event.key !== "Enter") return;
+      if (!editable || event.isComposing || event.key !== "Enter") return;
       if (event.ctrlKey) return;
       event.preventDefault();
       if (event.shiftKey && event.altKey) return;
@@ -570,17 +652,21 @@ function render(): void {
         void copyAll();
         pressButton(copyAllBtn);
       } else if (event.altKey) {
-        if (session?.local) {
+        if (session.local) {
           openRenumberDialog();
           pressButton(renumberBtn);
         }
       } else {
-        const next = current[index + 1];
+        markAnswered(session, round, entry);
+        row.classList.add("answered");
+        status.textContent = "Answered";
+        refreshRoundProgress(round, row);
+        const next = round.entries[index + 1];
         if (next) focusEntry(next.id);
-        else if (session?.local) {
-          const added = blankEntry(nextNumber(current));
-          current.push(added);
-          void saveEntries(session!.id, current);
+        else if (session.local) {
+          const added = blankEntry(nextNumber(round.entries));
+          round.entries.push(added);
+          void saveEntries(session.id, round.entries, round);
           render();
           focusEntry(added.id);
           pressButton(addEntryBtn);
@@ -588,7 +674,7 @@ function render(): void {
       }
     });
     content.append(textarea);
-    if (isLocal) {
+    if (isLocal && editable) {
       const remove = document.createElement("button");
       remove.className = "delete-entry-btn";
       remove.type = "button";
@@ -600,7 +686,28 @@ function render(): void {
     } else row.append(label, content);
     list.append(row);
   });
-  boardContentEl.append(list);
+  panel.append(list);
+  return panel;
+}
+function render(): void {
+  renderTabs();
+  renderRoundBar();
+  const session = activeSession();
+  const isLocal = Boolean(session?.local);
+  localToolbarEl.hidden = !isLocal;
+  boardContentEl.textContent = "";
+  if (!session) return;
+  const rounds = session.rounds;
+  if (!rounds.length) {
+    const message = document.createElement("div");
+    message.className = "empty-state";
+    message.textContent = "No rounds yet";
+    boardContentEl.append(message);
+    return;
+  }
+  rounds.forEach((round, index) =>
+    boardContentEl.append(renderRound(session, round, index === rounds.length - 1)),
+  );
 }
 
 function openRenumberDialog(): void {

@@ -9,6 +9,7 @@ export type Entry = {
   question: string;
   recommendation: string;
   text: string;
+  answered: boolean;
 };
 
 // The next Q-number to hand out: one past the current max, or 1 on an empty
