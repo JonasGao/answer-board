@@ -522,8 +522,11 @@ function refreshRoundProgress(round: Round, row: HTMLElement): void {
   const meta = panel.querySelector<HTMLElement>("[data-round-meta]");
   if (meta)
     meta.textContent = `${roundStatusLabel(round.status)} · ${count}/${round.entries.length} answered`;
-  const reply = panel.querySelector<HTMLButtonElement>("[data-round-reply]");
-  if (reply) reply.disabled = count !== round.entries.length;
+  panel
+    .querySelectorAll<HTMLButtonElement>("[data-round-reply]")
+    .forEach((reply) => {
+      reply.disabled = count !== round.entries.length;
+    });
 }
 async function replyRound(session: Session, round: Round): Promise<void> {
   if (!round.entries.every((entry) => entry.answered)) {
@@ -563,6 +566,28 @@ async function stopRound(session: Session, round: Round): Promise<void> {
     showToast("Could not stop round");
   }
 }
+function renderRoundToolbar(
+  session: Session,
+  round: Round,
+  answeredCount: number,
+): HTMLElement {
+  const toolbar = document.createElement("div");
+  toolbar.className = "round-toolbar";
+  const reply = document.createElement("button");
+  reply.type = "button";
+  reply.className = "btn btn-primary";
+  reply.dataset.roundReply = "true";
+  reply.textContent = "Reply Agent";
+  reply.disabled = answeredCount !== round.entries.length;
+  reply.addEventListener("click", () => void replyRound(session, round));
+  const stop = document.createElement("button");
+  stop.type = "button";
+  stop.className = "btn btn-danger";
+  stop.textContent = "Stop and return partial";
+  stop.addEventListener("click", () => void stopRound(session, round));
+  toolbar.append(reply, stop);
+  return toolbar;
+}
 function renderRound(session: Session, round: Round, isLatest: boolean): HTMLElement {
   const isLocal = session.local;
   const editable = isLocal
@@ -585,24 +610,9 @@ function renderRound(session: Session, round: Round, isLatest: boolean): HTMLEle
   summary.append(title, meta);
   panel.append(summary);
 
-  const toolbar = document.createElement("div");
-  toolbar.className = "round-toolbar";
-  if (!isLocal && editable) {
-    const reply = document.createElement("button");
-    reply.type = "button";
-    reply.className = "btn btn-primary";
-    reply.dataset.roundReply = "true";
-    reply.textContent = "Reply Agent";
-    reply.disabled = answeredCount !== round.entries.length;
-    reply.addEventListener("click", () => void replyRound(session, round));
-    const stop = document.createElement("button");
-    stop.type = "button";
-    stop.className = "btn btn-danger";
-    stop.textContent = "Stop and return partial";
-    stop.addEventListener("click", () => void stopRound(session, round));
-    toolbar.append(reply, stop);
-  }
-  if (toolbar.childElementCount) panel.append(toolbar);
+  const showRoundToolbar = !isLocal && editable;
+  if (showRoundToolbar)
+    panel.append(renderRoundToolbar(session, round, answeredCount));
 
   if (!round.entries.length) {
     const empty = document.createElement("div");
@@ -620,6 +630,8 @@ function renderRound(session: Session, round: Round, isLatest: boolean): HTMLEle
     add.addEventListener("click", addEntry);
     empty.append(mark, title, add);
     panel.append(empty);
+    if (showRoundToolbar)
+      panel.append(renderRoundToolbar(session, round, answeredCount));
     return panel;
   }
 
@@ -726,6 +738,8 @@ function renderRound(session: Session, round: Round, isLatest: boolean): HTMLEle
     list.append(row);
   });
   panel.append(list);
+  if (showRoundToolbar)
+    panel.append(renderRoundToolbar(session, round, answeredCount));
   return panel;
 }
 function render(): void {
