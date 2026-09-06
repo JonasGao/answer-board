@@ -56,15 +56,33 @@
         <button id="appearance-dialog-close" class="dialog-close btn btn-icon" type="button" aria-label="Close appearance settings" title="Close">&#215;</button>
       </div>
       <div class="dialog-scroll">
-        <section class="appearance-section" aria-labelledby="theme-heading">
+        <div class="appearance-tabs" role="tablist" aria-label="Settings sections">
+          <button id="service-tab" class="appearance-tab" type="button" role="tab" aria-selected="false">Service</button>
+          <button id="fonts-tab" class="appearance-tab active" type="button" role="tab" aria-selected="true">Fonts</button>
+        </div>
+        <section id="service-panel" class="appearance-section" aria-labelledby="service-heading" role="tabpanel" hidden>
+          <h3 id="service-heading" class="section-label">Socket service</h3>
+          <label class="field-label" for="bind-address-input">Bind address</label>
+          <input id="bind-address-input" class="font-input service-input" type="text" placeholder="127.0.0.1" spellcheck="false" />
+          <label class="field-label" for="bind-port-input">Port</label>
+          <input id="bind-port-input" class="font-size-input service-port-input" type="number" min="1" max="65535" step="1" inputmode="numeric" placeholder="8787" />
+          <p id="service-source" class="service-meta"></p>
+          <p id="service-status" class="service-meta"></p>
+          <p id="service-error" class="service-error" role="alert" hidden></p>
+          <div class="dialog-actions service-actions">
+            <button id="apply-service-btn" class="btn btn-primary" type="button">Apply</button>
+          </div>
+        </section>
+        <div id="fonts-panel" role="tabpanel">
+          <section class="appearance-section" aria-labelledby="theme-heading">
           <h3 id="theme-heading" class="section-label">Theme</h3>
           <div class="theme-toggle" role="group" aria-label="Theme">
             <button type="button" class="theme-btn" data-theme="light" aria-pressed="false">Light</button>
             <button type="button" class="theme-btn" data-theme="dark" aria-pressed="false">Dark</button>
             <button type="button" class="theme-btn" data-theme="system" aria-pressed="true">System</button>
           </div>
-        </section>
-        <section class="appearance-section" aria-labelledby="fonts-heading">
+          </section>
+          <section class="appearance-section" aria-labelledby="fonts-heading">
           <h3 id="fonts-heading" class="section-label">Fonts</h3>
           <div class="font-field">
             <label class="field-label" for="ui-font-input">Interface</label>
@@ -113,7 +131,8 @@ Second line shows the live answer input preview.</textarea>
           </div>
           <div class="code-preview" aria-hidden="true"><code>inline()</code><pre><code>const answer = "preview";
 console.log(answer);</code></pre></div>
-        </section>
+          </section>
+        </div>
       </div>
       <div class="dialog-actions">
         <button id="appearance-dialog-close-bottom" class="btn btn-primary" type="button">Done</button>

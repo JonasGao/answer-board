@@ -178,6 +178,10 @@ body { margin: 0; background: var(--bg); }
 
 .appearance-dialog { width: min(500px, calc(100vw - 24px)); }
 .dialog-scroll { max-height: min(420px, calc(100vh - 166px)); overflow: auto; padding-right: 3px; }
+.appearance-tabs { display: flex; gap: 4px; margin: 0 0 4px; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.appearance-tab { flex: 1; height: 32px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.appearance-tab:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); color: var(--text); }
+.appearance-tab.active { background: var(--accent); color: #fff; font-weight: 600; }
 .appearance-section { padding: 14px 0; border-top: 1px solid var(--border); }
 .appearance-section:first-child { padding-top: 14px; border-top: 0; }
 .theme-toggle { display: inline-flex; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); }
@@ -195,6 +199,11 @@ body { margin: 0; background: var(--bg); }
 .font-input { width: 100%; }
 .font-size-input { width: 64px; text-align: right; }
 .font-size-unit { color: var(--muted); font-size: 13px; }
+.service-input { width: 100%; }
+.service-port-input { width: 120px; }
+.service-meta { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+.service-error { margin: 10px 0 0; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--border)); border-radius: var(--radius); background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); overflow-wrap: anywhere; }
+.service-actions { justify-content: flex-start; }
 .appearance-preview { display: grid; grid-template-columns: minmax(64px, max-content) minmax(0, 1fr); gap: 10px; align-items: center; margin-top: 14px; padding: 9px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .preview-number { overflow: hidden; color: var(--muted); font-family: var(--number-font-family); font-size: var(--number-font-size); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .preview-answer { width: 100%; min-height: 64px; margin: 0; padding: 6px 8px; resize: none; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text); font-family: var(--input-font-family); font-size: var(--input-font-size); line-height: 1.45; }

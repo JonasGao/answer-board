@@ -3,11 +3,11 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     env,
-    net::SocketAddr,
+    net::ToSocketAddrs,
     sync::Arc,
     time::Duration,
 };
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWrite, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
@@ -15,9 +15,14 @@ use tokio::{
     time::{interval, MissedTickBehavior},
 };
 
+mod settings;
+use settings::{
+    AppSettings, FontSettings, ServiceSettings, ServiceSource, ServiceStatus, SettingsStore,
+    SettingsView,
+};
+
 const LOCAL_ID: &str = "local";
 const LOCAL_ROUND_ID: &str = "local-round";
-const DEFAULT_BIND: &str = "127.0.0.1:8787";
 const CHANGE_EVENT: &str = "board-changed";
 const DEFAULT_ANSWER: &str = "As suggested";
 const PROTOCOL_VERSION: u8 = 1;
@@ -203,6 +208,44 @@ struct HubState {
 #[derive(Default, Clone)]
 struct DeliveryHub {
     state: Arc<Mutex<HubState>>,
+}
+
+#[derive(Debug)]
+struct RuntimeSettings {
+    store: SettingsStore,
+    active: ServiceSettings,
+    source: ServiceSource,
+    status: ServiceStatus,
+    error: Option<String>,
+    cancel: Option<oneshot::Sender<()>>,
+}
+
+type SettingsState = Arc<Mutex<RuntimeSettings>>;
+
+fn settings_view(runtime: &RuntimeSettings) -> SettingsView {
+    SettingsView {
+        theme: runtime.store.saved.theme.clone(),
+        fonts: runtime.store.saved.fonts.clone(),
+        service: runtime.active.clone(),
+        service_source: runtime.source.clone(),
+        service_status: runtime.status.clone(),
+        service_error: runtime.error.clone(),
+    }
+}
+
+fn parse_bind(address: &str, port: u16) -> Result<String, String> {
+    let host = address.trim();
+    if host.is_empty() {
+        return Err("bind address must not be empty".into());
+    }
+    if port == 0 {
+        return Err("bind port must be between 1 and 65535".into());
+    }
+    if host.contains(':') && !(host.starts_with('[') && host.ends_with(']')) {
+        Ok(format!("[{host}]:{port}"))
+    } else {
+        Ok(format!("{host}:{port}"))
+    }
 }
 
 impl DeliveryHub {
@@ -705,41 +748,317 @@ async fn handle_connection(
     }
 }
 
-async fn serve_socket(state: SharedState, hub: DeliveryHub, app: AppHandle) {
-    let bind = env::var("ANSWER_BOARD_SOCKET_BIND").unwrap_or_else(|_| DEFAULT_BIND.into());
-    let address: SocketAddr = match bind.parse() {
-        Ok(address) => address,
-        Err(error) => {
-            eprintln!("invalid ANSWER_BOARD_SOCKET_BIND {bind:?}: {error}");
-            return;
-        }
-    };
-    let listener = match TcpListener::bind(address).await {
-        Ok(listener) => listener,
-        Err(error) => {
-            eprintln!("failed to bind Answer Board socket server to {address}: {error}");
-            return;
-        }
-    };
-    println!("Answer Board socket listening on {address}");
+async fn run_listener(
+    listener: TcpListener,
+    mut stop: oneshot::Receiver<()>,
+    state: SharedState,
+    hub: DeliveryHub,
+    app: AppHandle,
+) {
     loop {
-        match listener.accept().await {
-            Ok((stream, _)) => {
-                let next_state = state.clone();
-                let next_hub = hub.clone();
-                let next_app = app.clone();
-                tauri::async_runtime::spawn(handle_connection(
-                    stream, next_state, next_hub, next_app,
-                ));
+        tokio::select! {
+            _ = &mut stop => break,
+            accepted = listener.accept() => {
+                match accepted {
+                    Ok((stream, _)) => {
+                        let next_state = state.clone();
+                        let next_hub = hub.clone();
+                        let next_app = app.clone();
+                        tauri::async_runtime::spawn(handle_connection(
+                            stream, next_state, next_hub, next_app,
+                        ));
+                    }
+                    Err(error) => eprintln!("Answer Board socket accept failed: {error}"),
+                }
             }
-            Err(error) => eprintln!("Answer Board socket accept failed: {error}"),
         }
     }
+}
+
+async fn bind_listener(config: &ServiceSettings) -> Result<TcpListener, String> {
+    let bind = parse_bind(&config.bind_address, config.bind_port)?;
+    // Resolve once here so host names are supported while malformed values fail
+    // before any runtime state is changed. Tokio performs the actual bind.
+    let mut addresses = bind
+        .to_socket_addrs()
+        .map_err(|error| format!("could not resolve {bind}: {error}"))?;
+    let first = addresses
+        .next()
+        .ok_or_else(|| format!("could not resolve {bind}"))?;
+    TcpListener::bind(first)
+        .await
+        .map_err(|error| format!("could not listen on {bind}: {error}"))
+}
+
+async fn start_listener(
+    listener: TcpListener,
+    state: SharedState,
+    hub: DeliveryHub,
+    app: AppHandle,
+) -> oneshot::Sender<()> {
+    let (cancel, receiver) = oneshot::channel();
+    tauri::async_runtime::spawn(run_listener(listener, receiver, state, hub, app));
+    cancel
+}
+
+async fn emit_service_status(app: &AppHandle, settings: &SettingsState) {
+    let view = {
+        let runtime = settings.lock().await;
+        settings_view(&runtime)
+    };
+    let _ = app.emit("service-status-changed", view);
+}
+
+fn parse_environment_bind(raw: &str) -> Result<ServiceSettings, String> {
+    let value = raw.trim();
+    if value.is_empty() {
+        return Err("ANSWER_BOARD_SOCKET_BIND is empty".into());
+    }
+    if let Some(rest) = value.strip_prefix('[') {
+        let end = rest
+            .find(']')
+            .ok_or_else(|| "ANSWER_BOARD_SOCKET_BIND has an invalid IPv6 address".to_string())?;
+        let host = &rest[..end];
+        let port = rest
+            .get(end + 1..)
+            .and_then(|suffix| suffix.strip_prefix(':'))
+            .ok_or_else(|| "ANSWER_BOARD_SOCKET_BIND must use host:port".to_string())?
+            .parse::<u16>()
+            .map_err(|_| "ANSWER_BOARD_SOCKET_BIND has an invalid port".to_string())?;
+        return Ok(ServiceSettings {
+            bind_address: host.into(),
+            bind_port: port,
+        });
+    }
+    let (host, port) = value
+        .rsplit_once(':')
+        .ok_or_else(|| "ANSWER_BOARD_SOCKET_BIND must use host:port".to_string())?;
+    Ok(ServiceSettings {
+        bind_address: host.trim().into(),
+        bind_port: port
+            .parse::<u16>()
+            .map_err(|_| "ANSWER_BOARD_SOCKET_BIND has an invalid port".to_string())?,
+    })
+}
+
+async fn start_service(
+    app: AppHandle,
+    settings: SettingsState,
+    board: SharedState,
+    hub: DeliveryHub,
+) {
+    let (saved, path, has_saved_file) = match app.path().app_config_dir() {
+        Ok(dir) => {
+            let path = dir.join("settings.json");
+            match SettingsStore::load(path.clone()) {
+                Ok((store, present)) => (store.saved, path, present),
+                Err(error) => {
+                    eprintln!("{error}");
+                    (AppSettings::default(), path, false)
+                }
+            }
+        }
+        Err(error) => {
+            eprintln!("could not resolve settings directory: {error}");
+            (
+                AppSettings::default(),
+                std::env::temp_dir().join("answer-board-settings.json"),
+                false,
+            )
+        }
+    };
+    let store = SettingsStore::new(path, saved.clone());
+    let environment = env::var("ANSWER_BOARD_SOCKET_BIND").ok();
+    let (requested, source, env_error) = match environment {
+        Some(raw) => match parse_environment_bind(&raw) {
+            Ok(config) if config.bind_port > 0 && !config.bind_address.trim().is_empty() => {
+                (config, ServiceSource::Environment, None)
+            }
+            Ok(_) => (
+                saved.service.clone(),
+                if has_saved_file {
+                    ServiceSource::Saved
+                } else {
+                    ServiceSource::Default
+                },
+                Some("ANSWER_BOARD_SOCKET_BIND has an invalid address or port".into()),
+            ),
+            Err(error) => (
+                saved.service.clone(),
+                if has_saved_file {
+                    ServiceSource::Saved
+                } else {
+                    ServiceSource::Default
+                },
+                Some(error),
+            ),
+        },
+        None => (
+            saved.service.clone(),
+            if has_saved_file {
+                ServiceSource::Saved
+            } else {
+                ServiceSource::Default
+            },
+            None,
+        ),
+    };
+    let mut active = requested.clone();
+    let mut source = source;
+    let mut error = env_error;
+    let listener = match bind_listener(&requested).await {
+        Ok(listener) => Some(listener),
+        Err(first_error) => {
+            if source == ServiceSource::Environment && requested != saved.service {
+                match bind_listener(&saved.service).await {
+                    Ok(listener) => {
+                        active = saved.service.clone();
+                        source = ServiceSource::Saved;
+                        error = Some(first_error);
+                        Some(listener)
+                    }
+                    Err(_) => {
+                        error = Some(first_error);
+                        None
+                    }
+                }
+            } else {
+                error = Some(first_error);
+                None
+            }
+        }
+    };
+    let cancel = if let Some(listener) = listener {
+        println!(
+            "Answer Board socket listening on {}:{}",
+            active.bind_address, active.bind_port
+        );
+        Some(start_listener(listener, board, hub, app.clone()).await)
+    } else {
+        None
+    };
+    {
+        let mut runtime = settings.lock().await;
+        runtime.store = store;
+        runtime.active = active;
+        runtime.source = source;
+        runtime.status = if cancel.is_some() {
+            ServiceStatus::Running
+        } else {
+            ServiceStatus::Error
+        };
+        runtime.error = error;
+        runtime.cancel = cancel;
+    }
+    emit_service_status(&app, &settings).await;
 }
 
 #[tauri::command]
 async fn get_sessions(state: tauri::State<'_, SharedState>) -> Result<Vec<Session>, String> {
     Ok(state.lock().await.sessions.clone())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PreferencesPayload {
+    theme: String,
+    fonts: FontSettings,
+}
+
+#[tauri::command]
+async fn get_settings(settings: tauri::State<'_, SettingsState>) -> Result<SettingsView, String> {
+    let runtime = settings.lock().await;
+    Ok(settings_view(&runtime))
+}
+
+#[tauri::command]
+async fn update_preferences(
+    payload: PreferencesPayload,
+    settings: tauri::State<'_, SettingsState>,
+) -> Result<SettingsView, String> {
+    if !matches!(payload.theme.as_str(), "light" | "dark" | "system") {
+        return Err("theme must be light, dark, or system".into());
+    }
+    let mut runtime = settings.lock().await;
+    runtime.store.saved.theme = payload.theme;
+    runtime.store.saved.fonts = payload.fonts;
+    runtime.store.save()?;
+    Ok(settings_view(&runtime))
+}
+
+#[tauri::command]
+async fn apply_service_settings(
+    bind_address: String,
+    bind_port: u16,
+    settings: tauri::State<'_, SettingsState>,
+    state: tauri::State<'_, SharedState>,
+    hub: tauri::State<'_, DeliveryHub>,
+    app: AppHandle,
+) -> Result<SettingsView, String> {
+    let requested = ServiceSettings {
+        bind_address: bind_address.trim().into(),
+        bind_port,
+    };
+    if let Err(error) = parse_bind(&requested.bind_address, requested.bind_port) {
+        let view = {
+            let mut runtime = settings.lock().await;
+            runtime.error = Some(error.clone());
+            settings_view(&runtime)
+        };
+        let _ = app.emit("service-status-changed", view);
+        return Err(error);
+    }
+    {
+        let mut runtime = settings.lock().await;
+        if runtime.active == requested && matches!(runtime.status, ServiceStatus::Running) {
+            runtime.store.saved.service = requested;
+            runtime.store.save()?;
+            runtime.source = ServiceSource::Saved;
+            runtime.error = None;
+            let view = settings_view(&runtime);
+            let _ = app.emit("service-status-changed", view.clone());
+            return Ok(view);
+        }
+    }
+    let listener = match bind_listener(&requested).await {
+        Ok(listener) => listener,
+        Err(error) => {
+            let view = {
+                let mut runtime = settings.lock().await;
+                runtime.error = Some(error.clone());
+                settings_view(&runtime)
+            };
+            let _ = app.emit("service-status-changed", view);
+            return Err(error);
+        }
+    };
+    let (old_cancel, view) = {
+        let mut runtime = settings.lock().await;
+        let old_cancel = runtime.cancel.take();
+        runtime.store.saved.service = requested.clone();
+        if let Err(error) = runtime.store.save() {
+            runtime.cancel = old_cancel;
+            return Err(error);
+        }
+        let cancel = start_listener(
+            listener,
+            state.inner().clone(),
+            hub.inner().clone(),
+            app.clone(),
+        )
+        .await;
+        runtime.active = requested;
+        runtime.source = ServiceSource::Saved;
+        runtime.status = ServiceStatus::Running;
+        runtime.error = None;
+        runtime.cancel = Some(cancel);
+        (old_cancel, settings_view(&runtime))
+    };
+    if let Some(cancel) = old_cancel {
+        let _ = cancel.send(());
+    }
+    let _ = app.emit("service-status-changed", view.clone());
+    Ok(view)
 }
 
 #[tauri::command]
@@ -890,9 +1209,24 @@ fn list_system_fonts() -> Result<Vec<String>, String> {
 pub fn run() {
     let state = Arc::new(Mutex::new(BoardState::default()));
     let hub = DeliveryHub::default();
+    let settings = Arc::new(Mutex::new(RuntimeSettings {
+        store: SettingsStore::new(
+            std::env::temp_dir().join("answer-board-settings.json"),
+            AppSettings::default(),
+        ),
+        active: ServiceSettings::default(),
+        source: ServiceSource::Default,
+        status: ServiceStatus::Stopped,
+        error: None,
+        cancel: None,
+    }));
+    let settings_for_setup = settings.clone();
+    let state_for_setup = state.clone();
+    let hub_for_setup = hub.clone();
     tauri::Builder::default()
         .manage(state.clone())
         .manage(hub.clone())
+        .manage(settings.clone())
         .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             get_sessions,
@@ -900,13 +1234,17 @@ pub fn run() {
             reply_round,
             stop_round,
             close_session,
-            list_system_fonts
+            list_system_fonts,
+            get_settings,
+            update_preferences,
+            apply_service_settings
         ])
         .setup(move |app| {
-            tauri::async_runtime::spawn(serve_socket(
-                state.clone(),
-                hub.clone(),
+            tauri::async_runtime::spawn(start_service(
                 app.handle().clone(),
+                settings_for_setup,
+                state_for_setup,
+                hub_for_setup,
             ));
             Ok(())
         })

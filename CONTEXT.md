@@ -23,3 +23,5 @@
 - **代码字体（Code Font）**：Markdown 行内代码和 fenced code block 中代码内容使用的字体族与字号。
 - **字体配置（Font Settings）**：集中查看和修改界面字体、回答输入框字体、编号字体和代码字体的界面，入口在 header 的「Fonts…」。
 - **双向投递（Bidirectional Delivery）**：agent 通过 TCP JSON 长连接投递轮次并等待答题板返回结构化结果；连接断开时使用同一 Round ID 重连恢复。
+- **服务绑定（Service Binding）**：答题板 socket listener 监听的地址与端口，可在设置对话框的 Service 标签页修改。应用新绑定时先尝试监听新地址，成功后才切换旧 listener；失败时旧服务继续运行。
+- **统一设置（Unified Settings）**：主题、字体和服务绑定共同保存在平台配置目录的 `settings.json` 中。环境变量绑定只在应用启动时临时覆盖，不写入该文件。

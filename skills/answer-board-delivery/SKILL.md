@@ -25,6 +25,17 @@ after `$grill-with-docs`, `$grill-me`, or another wrapper that ultimately runs
    `round_result`. It automatically reconnects and resends the same
    `round_id` after a connection loss.
 
+   Treat the terminal process as an active wait until its final JSON result is
+   consumed. If the terminal tool returns a background session ID, retain that
+   ID and keep polling it (`write_stdin` in Codex) until the process exits and
+   prints `round_result`. A `Waited for background terminal`, `Worked for ...`,
+   or similar terminal status is not a completed delivery. Do not end the
+   grilling turn, print the pending questions, or start another delivery while
+   the original process is still being polled. If the user sends a follow-up
+   while it is waiting, continue polling the same process and reuse its
+   existing `session_id` and `round_id`; never invoke the script again for the
+   same round.
+
    ```bash
    scripts/deliver-round.sh \
      --session-id "agent-checkout" \
@@ -38,7 +49,8 @@ after `$grill-with-docs`, `$grill-me`, or another wrapper that ultimately runs
    scripts/deliver-round.sh --json-file /path/to/round.json
    ```
 
-4. Treat the printed JSON `round_result` as the answer. `status: "completed"`
+4. Only after the terminal process has produced and you have parsed the final
+   JSON `round_result`, treat it as the answer. `status: "completed"`
    means all entries were answered. `status: "stopped"` means the operator or
    agent stopped the round and the result may contain unanswered entries.
    Feed completed answers back into the grilling state before producing the
@@ -57,6 +69,6 @@ reconnects, so a retry cannot create a duplicate round. Ctrl-C sends a cancel
 message when the round revision is known and exits with status 130.
 
 Completion means the exact current grilling round was sent once, the script
-waited for a structured result, and that result was incorporated into the
-grilling state. Do not invoke this skill implicitly and do not deliver partial
-rounds.
+waited for a structured result, the terminal session was polled through
+process completion, and that result was incorporated into the grilling state.
+Do not invoke this skill implicitly and do not deliver partial rounds.

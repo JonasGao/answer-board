@@ -77,7 +77,10 @@ def run(payload: dict[str, Any], target: str) -> int:
                         raise RuntimeError(message.get("message", "round is busy"))
                 elif kind == "round_result":
                     send_message(sock, {"type": "result_ack", "round_id": payload["round_id"]})
-                    print(json.dumps(message, ensure_ascii=False, separators=(",", ":")))
+                    print(
+                        json.dumps(message, ensure_ascii=False, separators=(",", ":")),
+                        flush=True,
+                    )
                     return 0
                 elif kind == "error":
                     raise RuntimeError(message.get("message", "Answer Board rejected delivery"))

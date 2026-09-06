@@ -12,11 +12,13 @@ import {
 import {
   MAX_FONT_SIZE,
   MIN_FONT_SIZE,
+  type FontSettings,
   type Theme,
   initPrefs,
   isTheme,
   loadFontSettings,
   loadTheme,
+  setPreferencesPersistor,
   setInputFont,
   setInputFontSize,
   setCodeFont,
@@ -57,6 +59,32 @@ type RoundResult = {
   status: "completed" | "stopped";
   answers: Array<{ number: number; text: string; answered: boolean }>;
 };
+type ServiceSettings = { bindAddress: string; bindPort: number };
+type SettingsView = {
+  theme: Theme;
+  fonts: FontSettings;
+  service: ServiceSettings;
+  serviceSource: "environment" | "saved" | "default";
+  serviceStatus: "running" | "stopped" | "error";
+  serviceError: string | null;
+};
+
+function normalizeFonts(raw: unknown): FontSettings {
+  const value = (raw ?? {}) as Record<string, unknown>;
+  const pick = (camel: string, short: string, fallback: unknown = "") =>
+    value[camel] ?? value[short] ?? fallback;
+  return {
+    uiFont: String(pick("uiFont", "ui")),
+    uiFontSize: (pick("uiFontSize", "uiSize", null) as number | null),
+    inputFont: String(pick("inputFont", "input")),
+    inputFontSize: pick("inputFontSize", "inputSize", null) as number | null,
+    numberFont: String(pick("numberFont", "number")),
+    numberFontSize: pick("numberFontSize", "numberSize", null) as number | null,
+    questionFont: String(pick("questionFont", "question")),
+    questionFontSize: pick("questionFontSize", "questionSize", null) as number | null,
+    codeFont: String(pick("codeFont", "code")),
+  };
+}
 
 let sessions: Session[] = [];
 let activeSessionId = LOCAL_ID;
@@ -65,6 +93,7 @@ let toastTimer: number | undefined;
 let refreshQueue = Promise.resolve();
 const saveChains = new Map<string, Promise<boolean>>();
 const pendingSaves = new Map<string, SaveSnapshot>();
+let settingsView: SettingsView | undefined;
 
 const $ = <T extends HTMLElement>(id: string): T =>
   document.getElementById(id) as T;
@@ -103,6 +132,16 @@ const questionFontInput = $("question-font-input") as HTMLInputElement;
 const questionFontSizeInput = $("question-font-size") as HTMLInputElement;
 const codeFontInput = $("code-font-input") as HTMLInputElement;
 const themeBtns = document.querySelectorAll<HTMLButtonElement>(".theme-btn");
+const serviceTabBtn = $("service-tab") as HTMLButtonElement;
+const fontsTabBtn = $("fonts-tab") as HTMLButtonElement;
+const servicePanel = $("service-panel");
+const fontsPanel = $("fonts-panel");
+const bindAddressInput = $("bind-address-input") as HTMLInputElement;
+const bindPortInput = $("bind-port-input") as HTMLInputElement;
+const serviceSourceEl = $("service-source");
+const serviceStatusEl = $("service-status");
+const serviceErrorEl = $("service-error");
+const applyServiceBtn = $("apply-service-btn") as HTMLButtonElement;
 
 const fontInputs = [uiFontInput, inputFontInput, numberFontInput, questionFontInput, codeFontInput];
 let systemFonts: string[] | null = null;
@@ -867,9 +906,77 @@ function openAppearanceDialog(): void {
   questionFontSizeInput.value = settings.questionFontSize === null ? "" : String(settings.questionFontSize);
   codeFontInput.value = settings.codeFont;
   appearanceDialog.showModal();
+  if (settingsView) renderServiceSettings(settingsView);
+  void invoke<SettingsView>("get_settings").then((view) => {
+    view.fonts = normalizeFonts(view.fonts);
+    renderServiceSettings(view);
+  }).catch((error) => console.error(error));
   void loadSystemFonts();
   uiFontInput.focus();
   uiFontInput.select();
+}
+
+function renderServiceSettings(view: SettingsView): void {
+  view.fonts = normalizeFonts(view.fonts);
+  settingsView = view;
+  bindAddressInput.value = view.service.bindAddress;
+  bindPortInput.value = String(view.service.bindPort);
+  serviceSourceEl.textContent = view.serviceSource === "environment"
+    ? "Source: environment variable"
+    : view.serviceSource === "saved" ? "Source: saved settings" : "Source: default";
+  serviceStatusEl.textContent = view.serviceStatus === "running" ? "Running" : view.serviceStatus === "error" ? "Error" : "Stopped";
+  serviceErrorEl.textContent = view.serviceError ?? "";
+  serviceErrorEl.hidden = !view.serviceError;
+}
+
+function selectAppearanceTab(tab: "service" | "fonts"): void {
+  const service = tab === "service";
+  serviceTabBtn.classList.toggle("active", service);
+  fontsTabBtn.classList.toggle("active", !service);
+  serviceTabBtn.setAttribute("aria-selected", String(service));
+  fontsTabBtn.setAttribute("aria-selected", String(!service));
+  servicePanel.hidden = !service;
+  fontsPanel.hidden = service;
+}
+
+async function loadSettings(): Promise<void> {
+  try {
+    const view = await invoke<SettingsView>("get_settings");
+    view.fonts = normalizeFonts(view.fonts);
+    settingsView = view;
+    initPrefs(view.theme, view.fonts);
+    applyThemeButtons(view.theme);
+    renderServiceSettings(view);
+  } catch (error) {
+    console.error(error);
+    initPrefs();
+    applyThemeButtons(loadTheme());
+    showToast("Could not load settings");
+  }
+}
+
+async function applyServiceSettings(): Promise<void> {
+  const address = bindAddressInput.value.trim();
+  const port = Number(bindPortInput.value);
+  if (!address || !Number.isInteger(port) || port < 1 || port > 65535) {
+    serviceErrorEl.textContent = "Enter a valid address and a port between 1 and 65535.";
+    serviceErrorEl.hidden = false;
+    return;
+  }
+  applyServiceBtn.disabled = true;
+  try {
+    const view = await invoke<SettingsView>("apply_service_settings", {
+      bindAddress: address,
+      bindPort: port,
+    });
+    renderServiceSettings(view);
+    showToast("Service settings applied");
+  } catch (error) {
+    serviceErrorEl.textContent = String(error);
+    serviceErrorEl.hidden = false;
+  } finally {
+    applyServiceBtn.disabled = false;
+  }
 }
 function parseFontSize(raw: string): number | null | undefined {
   if (!raw.trim()) return null;
@@ -923,6 +1030,15 @@ themeBtns.forEach((btn) =>
   }),
 );
 appearanceBtn.addEventListener("click", openAppearanceDialog);
+serviceTabBtn.addEventListener("click", () => selectAppearanceTab("service"));
+fontsTabBtn.addEventListener("click", () => selectAppearanceTab("fonts"));
+bindAddressInput.addEventListener("input", () => {
+  serviceSourceEl.textContent = "Source: edited value (Apply to use)";
+});
+bindPortInput.addEventListener("input", () => {
+  serviceSourceEl.textContent = "Source: edited value (Apply to use)";
+});
+applyServiceBtn.addEventListener("click", () => void applyServiceSettings());
 appearanceDialogCloseBtn.addEventListener("click", () =>
   appearanceDialog.close(),
 );
@@ -960,8 +1076,20 @@ questionFontSizeInput.addEventListener("input", () => {
 codeFontInput.addEventListener("input", () => setCodeFont(codeFontInput.value));
 fontInputs.forEach(attachFontAutocomplete);
 
+setPreferencesPersistor((theme, fonts) => {
+  void invoke("update_preferences", { payload: { theme, fonts } }).catch((error) => {
+    console.error(error);
+    showToast("Could not save preferences");
+  });
+});
+selectAppearanceTab("fonts");
 initPrefs();
 applyThemeButtons(loadTheme());
+void loadSettings();
+void listen<SettingsView>("service-status-changed", (event) => {
+  event.payload.fonts = normalizeFonts(event.payload.fonts);
+  renderServiceSettings(event.payload);
+});
 void listen<BoardChange>(CHANGE_EVENT, (event) => {
   queueRefresh(() => refreshFromEvent(event.payload));
 })

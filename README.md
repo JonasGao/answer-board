@@ -8,7 +8,19 @@ the app process is running; closing the app discards it.
 
 Agents deliver a grilling round over a long-lived TCP socket. The default
 listener is local-only at `127.0.0.1:8787`; set `ANSWER_BOARD_SOCKET_BIND` to
-change it. The client target is configured with `ANSWER_BOARD_TARGET`.
+change the address for one application launch. The **Appearance → Service**
+tab configures and saves the binding address and port, and applies a new
+listener immediately. The client target is configured with
+`ANSWER_BOARD_TARGET`.
+
+Settings are stored as `settings.json` in Tauri's platform configuration
+directory (the standard Windows application config directory, or the XDG
+config directory on Linux/macOS). Theme, fonts, and service settings share
+this file. `ANSWER_BOARD_SOCKET_BIND` is a temporary startup override: it is
+shown as the environment source and never overwrites the saved file. If the
+override is removed, the saved service binding is restored on the next launch.
+When a new binding cannot be opened, the old listener remains active and the
+Service tab shows the error.
 
 The socket uses one JSON object per line. A delivery includes a stable
 `round_id`; reconnecting with the same ID resumes the existing round instead of
@@ -32,6 +44,12 @@ The board sends `round_result` only after the operator clicks **Reply Agent**
 for a fully answered round. **Stop and return partial** sends
 `status: "stopped"` with the current contents. If the socket disconnects before
 a result is received, the client reconnects with the same `round_id`.
+
+When a Codex terminal call yields a background session while waiting, that is
+an intermediate state rather than a completed delivery. The delivery skill
+must keep polling the same terminal session until the client prints and exits
+with the final `round_result`; sending the delivery command again would risk a
+duplicate round.
 
 There is no HTTP compatibility endpoint in this version. The socket protocol is
 intended for a trusted local machine; expose a wider bind address only when

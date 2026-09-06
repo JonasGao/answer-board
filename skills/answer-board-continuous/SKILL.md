@@ -16,9 +16,16 @@ Once activated, keep the mode active for the rest of the grilling session:
 2. Do not print those question blocks, introductions, or manual copy/paste
    instructions in the conversation. The delivery skill sends them directly to
    Answer Board and waits indefinitely for a structured `round_result`.
-3. Incorporate `status: "completed"` answers into the grilling state, generate
-   the next frontier, and deliver it immediately through the same delivery
-   skill. Reuse one stable session ID for every round.
+   Keep the delivery terminal session alive by polling its returned session ID
+   (`write_stdin` in Codex) until the final JSON is available. `Waited for
+   background terminal` and `Worked for ...` are intermediate terminal states,
+   not results. Do not finish the turn or emit a duplicate waiting message
+   merely because the terminal has yielded.
+3. Only after parsing `round_result`, incorporate `status: "completed"` answers
+   into the grilling state, generate the next frontier, and deliver it
+   immediately through the same delivery skill. Reuse one stable session ID for
+   every round. If a user follow-up arrives while the terminal is pending,
+   resume polling the same process and round; do not resend the delivery.
 4. If the result is `status: "stopped"`, stop the continuous loop and report the
    partial result only when the user asks or when continuing is impossible.
 5. A transport error, explicit user stop, or agent cancellation exits this mode;
