@@ -73,6 +73,10 @@ that is appropriate for the environment.
   entry answered and dims its row; typing alone does not.
 - **回复 Agent** — sends the complete round back through the waiting socket
   after every entry is marked answered.
+- When the last delivered answer is already marked answered, pressing Enter in
+  that answer input asks for confirmation before submitting. Press Enter again
+  or click **Submit** to reply; **Cancel** leaves the round unchanged. Clicking
+  **Reply Agent** submits directly without confirmation.
 - **停止并返回部分答案** — ends the waiting round and sends a structured
   partial result.
 - **添加 (Add)** — appends one new local entry at the next number.
@@ -86,8 +90,10 @@ that is appropriate for the environment.
 ## Keyboard shortcuts
 
 - **Enter** — mark the current entry answered, then focus the next entry; at
-  the end of the local board, create a new one. Other ways of leaving the
-  answer input, such as Tab or clicking elsewhere, also mark it answered.
+  the end of the local board, create a new one. In a delivered round, pressing
+  Enter again in an already answered last entry opens the submit confirmation.
+  Other ways of leaving the answer input, such as Tab or clicking elsewhere,
+  also mark it answered.
 - **Shift+Enter** — copy all entries.
 - **Alt+Enter** — renumber the local board.
 - **Ctrl+Enter** — insert a newline in the text area.

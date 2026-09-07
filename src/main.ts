@@ -95,6 +95,7 @@ let toastTimer: number | undefined;
 let refreshQueue = Promise.resolve();
 const saveChains = new Map<string, Promise<boolean>>();
 const pendingSaves = new Map<string, SaveSnapshot>();
+let pendingReplyConfirmation: { session: Session; round: Round } | undefined;
 let settingsView: SettingsView | undefined;
 
 const $ = <T extends HTMLElement>(id: string): T =>
@@ -124,6 +125,10 @@ const appearanceDialogCloseBtn = $(
 const appearanceDialogCloseBottomBtn = $(
   "appearance-dialog-close-bottom",
 ) as HTMLButtonElement;
+const replyConfirmDialog = $("reply-confirm-dialog") as HTMLDialogElement;
+const replyConfirmCloseBtn = $("reply-confirm-close") as HTMLButtonElement;
+const replyConfirmCancelBtn = $("reply-confirm-cancel") as HTMLButtonElement;
+const replyConfirmSubmitBtn = $("reply-confirm-submit") as HTMLButtonElement;
 const uiFontInput = $("ui-font-input") as HTMLInputElement;
 const uiFontSizeInput = $("ui-font-size") as HTMLInputElement;
 const inputFontInput = $("input-font-input") as HTMLInputElement;
@@ -182,7 +187,9 @@ function syncNextId(): void {
 }
 async function refreshAll(): Promise<void> {
   try {
-    sessions = await invoke<Session[]>("get_sessions");
+    const incoming = await invoke<Session[]>("get_sessions");
+    closeReplyConfirmation();
+    sessions = incoming;
     syncNextId();
     if (!sessions.some((session) => session.id === activeSessionId))
       activeSessionId = LOCAL_ID;
@@ -195,6 +202,7 @@ async function refreshAll(): Promise<void> {
 async function refreshFromEvent(_change: BoardChange): Promise<void> {
   try {
     const incoming = await invoke<Session[]>("get_sessions");
+    closeReplyConfirmation();
     sessions = incoming;
     syncNextId();
     if (!sessions.some((session) => session.id === activeSessionId)) {
@@ -210,7 +218,9 @@ async function openSessionFromNotification(
   notification: NotificationSessionOpen,
 ): Promise<void> {
   try {
-    sessions = await invoke<Session[]>("get_sessions");
+    const incoming = await invoke<Session[]>("get_sessions");
+    closeReplyConfirmation();
+    sessions = incoming;
     syncNextId();
     activeSessionId = sessions.some((session) => session.id === notification.session_id)
       ? notification.session_id
@@ -583,6 +593,21 @@ async function replyRound(session: Session, round: Round): Promise<void> {
     showToast("Could not reply to Agent");
   }
 }
+function closeReplyConfirmation(): void {
+  pendingReplyConfirmation = undefined;
+  if (replyConfirmDialog.open) replyConfirmDialog.close();
+}
+function openReplyConfirmation(session: Session, round: Round): void {
+  if (replyConfirmDialog.open) return;
+  pendingReplyConfirmation = { session, round };
+  replyConfirmDialog.showModal();
+  window.setTimeout(() => replyConfirmSubmitBtn.focus(), 0);
+}
+function confirmReply(): void {
+  const pending = pendingReplyConfirmation;
+  closeReplyConfirmation();
+  if (pending) void replyRound(pending.session, pending.round);
+}
 async function stopRound(session: Session, round: Round): Promise<void> {
   if (!(await saveEntries(session.id, round.entries, round))) return;
   try {
@@ -742,8 +767,17 @@ function renderRound(session: Session, round: Round, isLatest: boolean): HTMLEle
           pressButton(renumberBtn);
         }
       } else {
-        markEntryAnswered(session, round, entry, row, status);
         const next = round.entries[index + 1];
+        if (
+          !session.local &&
+          !next &&
+          entry.answered &&
+          round.entries.every((item) => item.answered)
+        ) {
+          openReplyConfirmation(session, round);
+          return;
+        }
+        markEntryAnswered(session, round, entry, row, status);
         if (next) focusEntry(next.id);
         else if (session.local) {
           const added = blankEntry(nextNumber(round.entries));
@@ -1094,6 +1128,25 @@ appearanceDialog.addEventListener("click", (event) => {
   if (event.target === appearanceDialog) appearanceDialog.close();
 });
 appearanceDialog.addEventListener("close", closeFontSuggestions);
+replyConfirmSubmitBtn.addEventListener("click", confirmReply);
+replyConfirmCancelBtn.addEventListener("click", closeReplyConfirmation);
+replyConfirmCloseBtn.addEventListener("click", closeReplyConfirmation);
+replyConfirmDialog.addEventListener("click", (event) => {
+  if (event.target === replyConfirmDialog) closeReplyConfirmation();
+});
+replyConfirmDialog.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeReplyConfirmation();
+});
+replyConfirmDialog.addEventListener("keydown", (event) => {
+  if (event.isComposing || event.key !== "Enter") return;
+  if (event.target === replyConfirmSubmitBtn) return;
+  event.preventDefault();
+  confirmReply();
+});
+replyConfirmDialog.addEventListener("close", () => {
+  pendingReplyConfirmation = undefined;
+});
 uiFontInput.addEventListener("input", () => setUiFont(uiFontInput.value));
 uiFontSizeInput.addEventListener("input", () => {
   const value = parseFontSize(uiFontSizeInput.value);

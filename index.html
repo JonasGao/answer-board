@@ -138,6 +138,17 @@ console.log(answer);</code></pre></div>
         <button id="appearance-dialog-close-bottom" class="btn btn-primary" type="button">Done</button>
       </div>
     </dialog>
+    <dialog id="reply-confirm-dialog" class="dialog reply-confirm-dialog">
+      <div class="dialog-header">
+        <h2 class="dialog-title">Confirm reply</h2>
+        <button id="reply-confirm-close" class="dialog-close btn btn-icon" type="button" aria-label="Close confirmation dialog" title="Close">&#215;</button>
+      </div>
+      <p class="reply-confirm-message">Submit this reply to Agent?</p>
+      <div class="dialog-actions">
+        <button id="reply-confirm-cancel" class="btn" type="button">Cancel</button>
+        <button id="reply-confirm-submit" class="btn btn-primary" type="button">Submit</button>
+      </div>
+    </dialog>
     <div id="toast" class="toast" role="status"></div>
   </body>
 </html>
