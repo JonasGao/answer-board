@@ -304,6 +304,61 @@ fn validate_questions(questions: Vec<IncomingQuestion>) -> Result<Vec<IncomingQu
     Ok(questions)
 }
 
+#[derive(Clone, Copy)]
+struct MarkdownFence {
+    marker: u8,
+    length: usize,
+}
+
+fn fence_run(line: &str) -> Option<(u8, usize, &str)> {
+    let bytes = line.as_bytes();
+    let mut offset = 0;
+    while offset < bytes.len() && bytes[offset] == b' ' && offset < 4 {
+        offset += 1;
+    }
+    if offset > 3 || offset == bytes.len() {
+        return None;
+    }
+    let marker = bytes[offset];
+    if marker != b'`' && marker != b'~' {
+        return None;
+    }
+    let mut end = offset;
+    while end < bytes.len() && bytes[end] == marker {
+        end += 1;
+    }
+    Some((marker, end - offset, &line[end..]))
+}
+
+fn update_fence(fence: &mut Option<MarkdownFence>, line: &str) {
+    let Some((marker, length, remainder)) = fence_run(line) else {
+        return;
+    };
+    match fence {
+        Some(open)
+            if marker == open.marker && length >= open.length && remainder.trim().is_empty() =>
+        {
+            *fence = None;
+        }
+        None if length >= 3 && !(marker == b'`' && remainder.contains('`')) => {
+            *fence = Some(MarkdownFence { marker, length });
+        }
+        _ => {}
+    }
+}
+
+fn join_markdown_block(lines: Vec<&str>) -> String {
+    let Some(start) = lines.iter().position(|line| !line.trim().is_empty()) else {
+        return String::new();
+    };
+    let end = lines
+        .iter()
+        .rposition(|line| !line.trim().is_empty())
+        .unwrap()
+        + 1;
+    lines[start..end].join("\n")
+}
+
 fn parse_markdown(markdown: &str) -> Result<Vec<IncomingQuestion>, String> {
     let question_re =
         Regex::new(r"^\s*❓\s*\*\*Q([1-9][0-9]*)\*\*\s*(?:-|–|—|:)\s*(.*)\s*$").unwrap();
@@ -322,33 +377,44 @@ fn parse_markdown(markdown: &str) -> Result<Vec<IncomingQuestion>, String> {
         let number = captures[1]
             .parse::<u32>()
             .map_err(|_| "invalid question number")?;
-        let mut body_lines = vec![captures.get(2).map_or("", |m| m.as_str()).trim_end()];
+        let body_first = captures.get(2).map_or("", |m| m.as_str());
+        let mut body_lines = vec![body_first];
+        let mut body_fence = None;
+        update_fence(&mut body_fence, body_first);
         index += 1;
         let mut recommendation_first = None;
         while index < lines.len() {
-            if let Some(rec) = recommendation_re.captures(lines[index]) {
-                recommendation_first = Some(rec.get(1).map_or("", |m| m.as_str()).trim_end());
-                index += 1;
-                break;
-            }
-            if question_re.is_match(lines[index]) {
-                return Err(format!("Q{number} is missing a recommendation"));
+            if body_fence.is_none() {
+                if let Some(rec) = recommendation_re.captures(lines[index]) {
+                    recommendation_first = Some(rec.get(1).map_or("", |m| m.as_str()));
+                    index += 1;
+                    break;
+                }
+                if question_re.is_match(lines[index]) {
+                    return Err(format!("Q{number} is missing a recommendation"));
+                }
             }
             body_lines.push(lines[index]);
+            update_fence(&mut body_fence, lines[index]);
             index += 1;
         }
         let Some(first) = recommendation_first else {
             return Err(format!("Q{number} is missing a recommendation"));
         };
         let mut recommendation_lines = vec![first];
-        while index < lines.len() && !question_re.is_match(lines[index]) {
+        let mut recommendation_fence = None;
+        update_fence(&mut recommendation_fence, first);
+        while index < lines.len()
+            && (recommendation_fence.is_some() || !question_re.is_match(lines[index]))
+        {
             recommendation_lines.push(lines[index]);
+            update_fence(&mut recommendation_fence, lines[index]);
             index += 1;
         }
         questions.push(IncomingQuestion {
             number,
-            body: body_lines.join("\n").trim().into(),
-            recommendation: recommendation_lines.join("\n").trim().into(),
+            body: join_markdown_block(body_lines),
+            recommendation: join_markdown_block(recommendation_lines),
         });
     }
     validate_questions(questions)
@@ -1372,6 +1438,57 @@ mod tests {
         assert!(parsed[0].body.contains("- A"));
         assert_eq!(parsed[0].recommendation, "Recommended B\nwith a reason");
         assert_eq!(parsed[1].number, 4);
+    }
+
+    #[test]
+    fn preserves_markdown_and_ignores_delimiters_inside_fences() {
+        let parsed = parse_markdown(concat!(
+            "❓ **Q1** - Intro  \n",
+            "\n",
+            "```text\n",
+            "➡️ not a recommendation\n",
+            "❓ **Q99** - not a question\n",
+            "```\n",
+            "\n",
+            "After the fence\n",
+            "➡️ Recommendation  \n",
+            "\n",
+            "~~~md\n",
+            "❓ **Q3** - still code\n",
+            "➡️ still code\n",
+            "~~~\n",
+            "\n",
+            "❓ **Q2** - Next\n",
+            "➡️ Done",
+        ))
+        .unwrap();
+
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(
+            parsed[0].body,
+            concat!(
+                "Intro  \n",
+                "\n",
+                "```text\n",
+                "➡️ not a recommendation\n",
+                "❓ **Q99** - not a question\n",
+                "```\n",
+                "\n",
+                "After the fence",
+            )
+        );
+        assert_eq!(
+            parsed[0].recommendation,
+            concat!(
+                "Recommendation  \n",
+                "\n",
+                "~~~md\n",
+                "❓ **Q3** - still code\n",
+                "➡️ still code\n",
+                "~~~",
+            )
+        );
+        assert_eq!(parsed[1].body, "Next");
     }
 
     #[test]

@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { activeFontToken, filterFontFamilies, replaceFontToken } from "./font-completion";
+import { renderMarkdown } from "./markdown";
 import {
   type Entry,
   byNumber,
@@ -334,72 +335,18 @@ async function copyAll(): Promise<void> {
   }
 }
 
-function appendInline(container: HTMLElement, text: string): void {
-  const pattern = /(\*\*[^*]+\*\*|`[^`]+`)/g;
-  let cursor = 0;
-  for (const match of text.matchAll(pattern)) {
-    const index = match.index ?? 0;
-    container.append(document.createTextNode(text.slice(cursor, index)));
-    const token = match[0];
-    const el = document.createElement(
-      token.startsWith("**") ? "strong" : "code",
-    );
-    if (token.startsWith("`")) el.className = "inline-code";
-    el.textContent = token.startsWith("**")
-      ? token.slice(2, -2)
-      : token.slice(1, -1);
-    container.append(el);
-    cursor = index + token.length;
+async function copyMarkdownLink(url: string): Promise<void> {
+  try {
+    await writeText(url);
+    showToast("Link copied");
+  } catch {
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast("Link copied");
+    } catch {
+      showToast("Could not copy link");
+    }
   }
-  container.append(document.createTextNode(text.slice(cursor)));
-}
-function renderMarkdown(raw: string): HTMLElement {
-  const root = document.createElement("div");
-  root.className = "markdown";
-  let list: HTMLElement | null = null;
-  let kind = "";
-  let code: HTMLElement | null = null;
-  for (const line of raw.split("\n")) {
-    if (line.trim().startsWith("```")) {
-      if (code) {
-        root.append(code);
-        code = null;
-      } else {
-        code = document.createElement("pre");
-        code.className = "code-block";
-        code.append(document.createElement("code"));
-      }
-      list = null;
-      kind = "";
-      continue;
-    }
-    if (code) {
-      code.firstElementChild!.textContent += `${line}\n`;
-      continue;
-    }
-    const unordered = /^\s*[-*]\s+(.*)$/.exec(line);
-    const ordered = /^\s*\d+[.)]\s+(.*)$/.exec(line);
-    if (unordered || ordered) {
-      const nextKind = unordered ? "ul" : "ol";
-      if (!list || kind !== nextKind) {
-        list = document.createElement(nextKind);
-        kind = nextKind;
-        root.append(list);
-      }
-      const li = document.createElement("li");
-      appendInline(li, (unordered ?? ordered)![1]);
-      list.append(li);
-      continue;
-    }
-    list = null;
-    kind = "";
-    if (!line.trim()) continue;
-    const p = document.createElement("p");
-    appendInline(p, line);
-    root.append(p);
-  }
-  if (code) root.append(code);
-  return root;
 }
 
 function activateSessionTab(index: number): void {
@@ -719,7 +666,10 @@ function renderRound(session: Session, round: Round, isLatest: boolean): HTMLEle
       const heading = document.createElement("div");
       heading.className = "content-label";
       heading.textContent = "Question";
-      content.append(heading, renderMarkdown(entry.question));
+      content.append(
+        heading,
+        renderMarkdown(entry.question, copyMarkdownLink),
+      );
     }
     if (entry.recommendation) {
       const recommendation = document.createElement("div");
@@ -727,7 +677,10 @@ function renderRound(session: Session, round: Round, isLatest: boolean): HTMLEle
       const heading = document.createElement("div");
       heading.className = "content-label";
       heading.textContent = "Recommended answer";
-      recommendation.append(heading, renderMarkdown(entry.recommendation));
+      recommendation.append(
+        heading,
+        renderMarkdown(entry.recommendation, copyMarkdownLink),
+      );
       content.append(recommendation);
     }
     const status = document.createElement("div");

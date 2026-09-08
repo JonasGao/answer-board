@@ -34,6 +34,14 @@ def main() -> int:
     server.settimeout(5)
     host, port = server.getsockname()
     state: dict[str, object] = {"deliveries": 0, "ack": None, "error": None}
+    markdown = (
+        "❓ **Q1** - ## 复杂问题\n\n"
+        "- 第一项\n"
+        "  - 嵌套项\n\n"
+        "```text\n➡️ 代码里的标记\n```\n\n"
+        "| 名称 | 值 |\n| --- | ---: |\n| A | 1 |\n\n"
+        "➡️ **建议**\n\n1. 保留原始排版"
+    )
 
     def serve() -> None:
         try:
@@ -41,6 +49,7 @@ def main() -> int:
             with conn:
                 delivery = read_line(conn)
                 assert delivery["type"] == "deliver"
+                assert delivery["markdown"] == markdown
                 state["deliveries"] = int(state["deliveries"]) + 1
                 ack = {
                     "type": "delivery_ack",
@@ -79,7 +88,7 @@ def main() -> int:
         "protocol": 1,
         "session_id": "delivery-regression",
         "round_id": "round-delayed-result",
-        "markdown": "❓ **Q1** - Question\n\n➡️ Recommendation",
+        "markdown": markdown,
     }
     payload_fd, payload_name = tempfile.mkstemp(prefix="answer-board-", suffix=".json")
     os.close(payload_fd)

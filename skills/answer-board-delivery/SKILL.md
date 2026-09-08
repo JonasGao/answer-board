@@ -18,7 +18,8 @@ after `$grill-with-docs`, `$grill-me`, or another wrapper that ultimately runs
    agent/task and reuse it for every round.
 2. Create a fresh stable `round_id` for the current round. Preserve the exact
    grilling Markdown blocks and send only the question blocks, without an
-   introduction or closing commentary.
+   introduction or closing commentary. Do not reflow, normalize, or infer new
+   paragraphs or lists before delivery.
 3. Run `scripts/deliver-round.sh` from this skill directory. The script sends
    the round to `ANSWER_BOARD_TARGET` (default `127.0.0.1:8787`) over a
    newline-delimited JSON TCP socket, then waits indefinitely for a
@@ -48,6 +49,21 @@ after `$grill-with-docs`, `$grill-me`, or another wrapper that ultimately runs
    ```bash
    scripts/deliver-round.sh --json-file /path/to/round.json
    ```
+
+   Each Markdown question block must start with
+   `❓ **Q<number>** - <question>` (an en dash, em dash, or colon may replace the
+   hyphen), and its recommendation must start on a line with `➡️`. Content on
+   later lines belongs to that section until the next delimiter outside a
+   fenced code block.
+
+   Answer Board renders CommonMark plus common GFM constructs, including
+   headings, paragraphs, emphasis, strikethrough, blockquotes, nested and task
+   lists, links, fenced code, and tables. Standard Markdown line-break rules
+   apply: use a blank line for a paragraph and two trailing spaces or a trailing
+   backslash for a hard break. Raw HTML displays as text. Images display only a
+   text placeholder, and HTTP(S) links copy their address when activated rather
+   than navigating. The transport preserves the supplied UTF-8 Markdown; it
+   does not repair unstructured single-line source text.
 
 4. Only after the terminal process has produced and you have parsed the final
    JSON `round_result`, treat it as the answer. `status: "completed"`

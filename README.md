@@ -40,6 +40,20 @@ skills/answer-board-delivery/scripts/deliver-round.sh \
   --markdown-file /path/to/round.md
 ```
 
+Each question block starts with `❓ **Q<number>** - <question>` and introduces
+its recommendation with `➡️` on a new line. Question and recommendation content
+continues until the next delimiter outside a fenced code block. The UTF-8
+Markdown is transported without reformatting, including internal indentation,
+blank lines, and trailing spaces used for hard breaks.
+
+The renderer supports CommonMark and common GFM formatting: headings,
+paragraphs, emphasis, strikethrough, blockquotes, nested and task lists, fenced
+code, tables, and links. Standard Markdown line-break rules apply, so ordinary
+single newlines wrap as spaces; use a blank line for a paragraph or two trailing
+spaces/a trailing backslash for a hard break. Raw HTML is shown as text, images
+are shown as text placeholders without loading remote resources, and activating
+an HTTP(S) link copies its address instead of navigating away from the board.
+
 The board sends `round_result` only after the operator clicks **Reply Agent**
 for a fully answered round. **Stop and return partial** sends
 `status: "stopped"` with the current contents. If the socket disconnects before
@@ -66,8 +80,9 @@ that is appropriate for the environment.
 - **轮次面板 (Round panels)** — each delivered round is a collapsible panel.
   The newest answering round is expanded and editable; completed or stopped
   rounds are read-only. A new round automatically folds the previous one.
-- **问题和推荐回答** — delivered entries safely render Markdown above the
-  editable answer; raw HTML displays as text. Answers start as `As suggested`.
+- **问题和推荐回答** — delivered entries safely render CommonMark and common
+  GFM above the editable answer. Raw HTML displays as text, images never load,
+  and HTTP(S) links copy their address. Answers start as `As suggested`.
 - **已答题 (Answered)** — delivered entries start unanswered. Leaving an answer
   input (for example by pressing Enter, Tab, or clicking elsewhere) marks that
   entry answered and dims its row; typing alone does not.
