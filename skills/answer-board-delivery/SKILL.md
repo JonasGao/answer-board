@@ -1,6 +1,6 @@
 ---
 name: answer-board-delivery
-description: Deliver one completed grilling round to Answer Board over its bidirectional TCP JSON socket and wait for the operator's result.
+description: Load instructions and scripts for Answer Board delivery. NOT a direct content delivery interface — you must call scripts with Bash tool.
 ---
 
 # Answer Board Delivery
@@ -9,6 +9,23 @@ Use this skill only when the user explicitly asks to deliver a grilling round to
 Answer Board. It is independent of the skill that started grilling: it applies
 after `$grill-with-docs`, `$grill-me`, or another wrapper that ultimately runs
 `/grilling`.
+
+## ⚠️ CRITICAL: How to use this skill
+
+**DO NOT**:
+- Call this skill with content as `args` — it provides instructions, not a delivery API
+- Write your own delivery code (Node.js, Python, TCP socket implementation)
+- Call `answer-board-client.js` directly
+- Implement custom HTTP/TCP delivery logic
+
+**YOU MUST**:
+- Save grilling questions to a markdown file first
+- Use `bash scripts/deliver-round.sh` from this skill directory to deliver
+- Wait for the script to complete and return `round_result` JSON
+- Parse the result before generating the next grilling frontier
+
+This skill provides scripts and protocol documentation — it is not invoked to
+deliver content. Delivery happens via the Bash tool calling the provided script.
 
 ## Deliver and wait
 
