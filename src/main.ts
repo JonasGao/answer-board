@@ -133,7 +133,6 @@ const pasteInput = $("paste-input") as HTMLTextAreaElement;
 const pasteErrorEl = $("paste-error");
 const pastePreviewEl = $("paste-preview");
 const pasteModeEl = $("paste-mode") as HTMLFieldSetElement;
-const pasteParseBtn = $("paste-parse") as HTMLButtonElement;
 const pasteOkBtn = $("paste-ok") as HTMLButtonElement;
 const pasteCancelBtn = $("paste-cancel") as HTMLButtonElement;
 const appearanceBtn = $("appearance-btn") as HTMLButtonElement;
@@ -973,21 +972,28 @@ function renderPastePreview(): void {
   pastePreviewEl.hidden = false;
 }
 
+function updatePastePrimary(): void {
+  pasteOkBtn.textContent = pasteItems.length > 0 ? "Confirm" : "Apply";
+}
+function resetPastePreview(): void {
+  pasteItems = [];
+  pastePreviewEl.textContent = "";
+  pastePreviewEl.hidden = true;
+  pasteModeEl.hidden = true;
+  updatePastePrimary();
+}
+
 function openPasteDialog(): void {
   if (!activeSession()?.local) return;
   pasteInput.value = "";
   pasteErrorEl.textContent = "";
   pasteErrorEl.hidden = true;
-  pasteItems = [];
-  pastePreviewEl.textContent = "";
-  pastePreviewEl.hidden = true;
-  pasteModeEl.hidden = true;
+  resetPastePreview();
   pasteModeEl
     .querySelectorAll<HTMLInputElement>('input[name="paste-mode"]')
     .forEach((radio) => {
       radio.checked = radio.value === "overwrite";
     });
-  pasteOkBtn.hidden = true;
   pasteDialog.showModal();
   pasteInput.focus();
 }
@@ -1000,18 +1006,14 @@ function parsePastedInput(): void {
         ? `Duplicate numbers in paste: ${parsed.duplicates?.map((n) => `Q${n}`).join(", ")}`
         : "No questions found — paste the agent's question blocks (❓ … ➡️ …) and try again";
     pasteErrorEl.hidden = false;
-    pasteItems = [];
-    pastePreviewEl.textContent = "";
-    pastePreviewEl.hidden = true;
-    pasteModeEl.hidden = true;
-    pasteOkBtn.hidden = true;
+    resetPastePreview();
     return;
   }
   pasteErrorEl.hidden = true;
   pasteItems = parsed.questions.map((question) => ({ include: true, ...question }));
   pasteModeEl.hidden = false;
-  pasteOkBtn.hidden = false;
   renderPastePreview();
+  updatePastePrimary();
 }
 
 function confirmPaste(): void {
@@ -1269,8 +1271,11 @@ renumberDialog
 attachStepper(renumberStepDownBtn, -1);
 attachStepper(renumberStepUpBtn, 1);
 pasteBtn.addEventListener("click", openPasteDialog);
-pasteParseBtn.addEventListener("click", parsePastedInput);
-pasteOkBtn.addEventListener("click", confirmPaste);
+pasteOkBtn.addEventListener("click", () => {
+  if (pasteItems.length > 0) confirmPaste();
+  else parsePastedInput();
+});
+pasteInput.addEventListener("input", resetPastePreview);
 pasteCancelBtn.addEventListener("click", () => pasteDialog.close());
 pasteDialog.addEventListener("click", (event) => {
   if (event.target === pasteDialog) pasteDialog.close();
