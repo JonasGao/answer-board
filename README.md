@@ -99,7 +99,9 @@ that is appropriate for the environment.
   unique positive numbers.
 - **粘贴导入 (Paste)** — pastes text a human copied out of an agent's terminal
   (for example a `zellij action dump-screen` capture) and parses it into
-  entries on the local board. Question blocks (`❓ Qn …` with a `➡️`
+  entries on the local board. Opening the dialog prefills the textarea with
+  the clipboard contents when it holds text. Question blocks (`❓ Qn …` with a
+  `➡️`
   recommendation) are extracted tolerantly: everything else — shell prompts,
   spinner lines, agent status output, `---` separators, status bars — is
   ignored, the `**` bolding around the Q-number is optional, and a block whose

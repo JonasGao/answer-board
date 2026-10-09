@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { activeFontToken, filterFontFamilies, replaceFontToken } from "./font-completion";
 import { renderMarkdown } from "./markdown";
 import {
@@ -996,6 +996,26 @@ function openPasteDialog(): void {
     });
   pasteDialog.showModal();
   pasteInput.focus();
+  void fillPasteFromClipboard();
+}
+
+// On open, prefill the textarea with whatever text the clipboard holds so the
+// usual copy-dump-then-click-Paste flow needs no manual Ctrl+V. Only fills an
+// untouched textarea and never blocks the dialog: clipboard failures leave it
+// empty for manual pasting.
+async function fillPasteFromClipboard(): Promise<void> {
+  let text: string;
+  try {
+    text = await readText();
+  } catch {
+    try {
+      text = await navigator.clipboard.readText();
+    } catch (error) {
+      console.warn("Clipboard read unavailable", error);
+      return;
+    }
+  }
+  if (text && pasteInput.value === "") pasteInput.value = text;
 }
 
 function parsePastedInput(): void {
