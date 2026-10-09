@@ -97,6 +97,19 @@ that is appropriate for the environment.
 - **添加 (Add)** — appends one new local entry at the next number.
 - **重编号 (Renumber)** — clears local entries and rebuilds them from a list of
   unique positive numbers.
+- **粘贴导入 (Paste)** — pastes text a human copied out of an agent's terminal
+  (for example a `zellij action dump-screen` capture) and parses it into
+  entries on the local board. Question blocks (`❓ Qn …` with a `➡️`
+  recommendation) are extracted tolerantly: everything else — shell prompts,
+  spinner lines, agent status output, `---` separators, status bars — is
+  ignored, the `**` bolding around the Q-number is optional, and a block whose
+  `➡️` section is missing is kept but flagged "may be truncated". A preview
+  lets you edit or exclude each parsed entry before anything reaches the
+  board. Apply as **Overwrite board** (default) or **Append**; either way an
+  imported number replaces the board entry with the same number, keeping the
+  existing answer when the question and recommendation are unchanged. This
+  tolerant parser lives in the frontend only — the strict markdown parser on
+  the delivery socket is unchanged.
 - **改号 (Relabel)** — edits a local entry's number in place and preserves
   sorted order.
 - **复制全部 (Copy All)** — copies local entries as `Q{n}: {answer}` lines.

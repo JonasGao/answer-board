@@ -25,6 +25,7 @@
           <div class="board-toolbar-actions" aria-label="Local board actions">
             <button id="add-entry-btn" class="btn" type="button" title="Add entry (Enter at the end)">Add</button>
             <button id="renumber-btn" class="btn" type="button" title="Clear all and rebuild from a list of numbers (Alt+Enter)">Renumber</button>
+            <button id="paste-btn" class="btn" type="button" title="Paste agent output and parse it into entries">Paste</button>
             <button id="clear-all-btn" class="btn btn-danger" type="button" title="Clear all entries">Clear</button>
           </div>
         </div>
@@ -47,6 +48,27 @@
       <div class="dialog-actions">
         <button id="renumber-cancel" class="btn" type="button">Cancel</button>
         <button id="renumber-ok" class="btn btn-primary" type="button">Replace board</button>
+      </div>
+    </dialog>
+
+    <dialog id="paste-dialog" class="dialog paste-dialog">
+      <div class="dialog-header">
+        <h2 class="dialog-title">Paste import</h2>
+        <button class="dialog-close btn btn-icon" type="button" aria-label="Close paste dialog" title="Close">&#215;</button>
+      </div>
+      <label class="field-label" for="paste-input">Agent output</label>
+      <textarea id="paste-input" class="paste-input" rows="8" spellcheck="false" placeholder="Paste text copied from the agent's terminal here. Question blocks (❓ Qn … ➡️ …) are extracted; everything else is ignored."></textarea>
+      <p id="paste-error" class="service-error" role="alert" hidden></p>
+      <div id="paste-preview" class="paste-preview" hidden></div>
+      <fieldset id="paste-mode" class="paste-mode" hidden>
+        <legend class="field-label">Apply as</legend>
+        <label class="paste-mode-option"><input type="radio" name="paste-mode" value="overwrite" checked /> Overwrite board</label>
+        <label class="paste-mode-option"><input type="radio" name="paste-mode" value="append" /> Append (same numbers replace)</label>
+      </fieldset>
+      <div class="dialog-actions">
+        <button id="paste-cancel" class="btn" type="button">Cancel</button>
+        <button id="paste-parse" class="btn" type="button">Parse</button>
+        <button id="paste-ok" class="btn btn-primary" type="button" hidden>Apply</button>
       </div>
     </dialog>
 

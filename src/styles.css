@@ -197,7 +197,27 @@ body { margin: 0; background: var(--bg); }
 .stepper-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .renumber-hint { min-height: 20px; margin: 8px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 
+.paste-input { width: 100%; min-height: 96px; max-height: 220px; padding: 8px 9px; resize: vertical; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font-family: var(--code-font-family); font-size: 13px; line-height: 1.45; }
+.paste-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.paste-preview { max-height: min(320px, calc(100vh - 340px)); overflow: auto; margin-top: 6px; display: flex; flex-direction: column; gap: 8px; padding-right: 3px; }
+.paste-item { display: grid; grid-template-columns: auto 56px minmax(0, 1fr); align-items: start; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.paste-item-include { margin: 4px 0 0 3px; accent-color: var(--accent); }
+.paste-item-number { height: var(--control-height); min-width: 0; padding: 0 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); font-family: var(--number-font-family); font-size: var(--number-font-size); font-weight: 650; text-align: center; }
+.paste-item-number:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.paste-item-body { min-width: 0; }
+.paste-item-badges { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 5px; }
+.paste-badge { padding: 1px 8px; border-radius: 9px; border: 1px solid var(--border); font-size: 12px; }
+.paste-badge-warn { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); background: color-mix(in srgb, var(--danger) 9%, transparent); color: var(--danger); }
+.paste-badge-info { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); background: color-mix(in srgb, var(--accent) 9%, transparent); color: var(--accent); }
+.paste-item-field { width: 100%; min-width: 0; min-height: 56px; padding: 5px 7px; resize: vertical; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); font-family: var(--question-font-family); font-size: 13px; line-height: 1.45; }
+.paste-item-field:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.paste-mode { margin: 12px 0 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px; }
+.paste-mode .field-label { margin: 0; }
+.paste-mode-option { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; }
+.paste-mode-option input { accent-color: var(--accent); }
+
 .appearance-dialog { width: min(500px, calc(100vw - 24px)); }
+.paste-dialog { width: min(680px, calc(100vw - 24px)); }
 .reply-confirm-dialog { width: min(360px, calc(100vw - 24px)); }
 .reply-confirm-message { margin: 18px 0 0; color: var(--text); }
 .dialog-scroll { max-height: min(420px, calc(100vh - 166px)); overflow: auto; padding-right: 3px; }

@@ -10,6 +10,7 @@ import {
   nextNumber,
   parseNumberList,
 } from "./format";
+import { parsePastedQuestions } from "./paste";
 import {
   MAX_FONT_SIZE,
   MIN_FONT_SIZE,
@@ -63,6 +64,13 @@ type RoundResult = {
   answers: Array<{ number: number; text: string; answered: boolean }>;
 };
 type ServiceSettings = { bindAddress: string; bindPort: number };
+type PasteItem = {
+  include: boolean;
+  number: number;
+  question: string;
+  recommendation: string;
+  truncated: boolean;
+};
 type SettingsView = {
   theme: Theme;
   fonts: FontSettings;
@@ -98,6 +106,7 @@ const saveChains = new Map<string, Promise<boolean>>();
 const pendingSaves = new Map<string, SaveSnapshot>();
 let pendingReplyConfirmation: { session: Session; round: Round } | undefined;
 let settingsView: SettingsView | undefined;
+let pasteItems: PasteItem[] = [];
 
 const $ = <T extends HTMLElement>(id: string): T =>
   document.getElementById(id) as T;
@@ -118,6 +127,15 @@ const renumberStepUpBtn = $("renumber-step-up") as HTMLButtonElement;
 const renumberHintEl = $("renumber-hint");
 const renumberOkBtn = $("renumber-ok") as HTMLButtonElement;
 const renumberCancelBtn = $("renumber-cancel") as HTMLButtonElement;
+const pasteBtn = $("paste-btn") as HTMLButtonElement;
+const pasteDialog = $("paste-dialog") as HTMLDialogElement;
+const pasteInput = $("paste-input") as HTMLTextAreaElement;
+const pasteErrorEl = $("paste-error");
+const pastePreviewEl = $("paste-preview");
+const pasteModeEl = $("paste-mode") as HTMLFieldSetElement;
+const pasteParseBtn = $("paste-parse") as HTMLButtonElement;
+const pasteOkBtn = $("paste-ok") as HTMLButtonElement;
+const pasteCancelBtn = $("paste-cancel") as HTMLButtonElement;
 const appearanceBtn = $("appearance-btn") as HTMLButtonElement;
 const appearanceDialog = $("appearance-dialog") as HTMLDialogElement;
 const appearanceDialogCloseBtn = $(
@@ -851,6 +869,203 @@ function attachStepper(btn: HTMLButtonElement, delta: number): void {
     } else stepRenumber(delta * (event.shiftKey ? 10 : 1));
   });
 }
+
+function pasteModeValue(): "overwrite" | "append" {
+  return pasteModeEl.querySelector<HTMLInputElement>(
+    'input[name="paste-mode"]:checked',
+  )?.value === "append"
+    ? "append"
+    : "overwrite";
+}
+
+function pasteBadge(
+  text: string,
+  variant: "warn" | "info",
+  title?: string,
+): HTMLElement {
+  const badge = document.createElement("span");
+  badge.className = `paste-badge paste-badge-${variant}`;
+  badge.textContent = text;
+  if (title) badge.title = title;
+  return badge;
+}
+
+function renderPastePreview(): void {
+  pastePreviewEl.textContent = "";
+  const board = activeEntries();
+  const append = pasteModeValue() === "append";
+  pasteItems.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "paste-item";
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.className = "paste-item-include";
+    check.checked = item.include;
+    check.ariaLabel = `Include Q${item.number || "?"}`;
+    check.addEventListener("change", () => {
+      item.include = check.checked;
+    });
+    const numberInput = document.createElement("input");
+    numberInput.type = "text";
+    numberInput.inputMode = "numeric";
+    numberInput.className = "paste-item-number";
+    numberInput.value = item.number > 0 ? String(item.number) : "";
+    numberInput.ariaLabel = "Entry number";
+    numberInput.addEventListener("input", () => {
+      numberInput.value = numberInput.value.replace(/\D/g, "");
+      item.number = Number(numberInput.value) || 0;
+    });
+    const body = document.createElement("div");
+    body.className = "paste-item-body";
+    const badges = document.createElement("div");
+    badges.className = "paste-item-badges";
+    if (item.truncated)
+      badges.append(
+        pasteBadge(
+          "May be truncated",
+          "warn",
+          "No ➡️ recommendation was found for this question",
+        ),
+      );
+    if (append) {
+      const prior = board.find((entry) => entry.number === item.number);
+      if (prior) {
+        const identical =
+          prior.question === item.question &&
+          prior.recommendation === item.recommendation;
+        badges.append(
+          pasteBadge(
+            identical
+              ? `Replaces Q${item.number}, answer kept`
+              : `Replaces Q${item.number}, question changed`,
+            "info",
+          ),
+        );
+      }
+    }
+    if (badges.childNodes.length > 0) body.append(badges);
+    const questionLabel = document.createElement("div");
+    questionLabel.className = "content-label";
+    questionLabel.textContent = "Question";
+    const questionInput = document.createElement("textarea");
+    questionInput.className = "paste-item-field";
+    questionInput.rows = 3;
+    questionInput.value = item.question;
+    questionInput.ariaLabel = "Question text";
+    questionInput.addEventListener("input", () => {
+      item.question = questionInput.value;
+    });
+    const recommendationLabel = document.createElement("div");
+    recommendationLabel.className = "content-label";
+    recommendationLabel.textContent = "Recommended answer";
+    const recommendationInput = document.createElement("textarea");
+    recommendationInput.className = "paste-item-field";
+    recommendationInput.rows = 3;
+    recommendationInput.value = item.recommendation;
+    recommendationInput.ariaLabel = "Recommended answer text";
+    recommendationInput.addEventListener("input", () => {
+      item.recommendation = recommendationInput.value;
+    });
+    body.append(questionLabel, questionInput, recommendationLabel, recommendationInput);
+    row.append(check, numberInput, body);
+    pastePreviewEl.append(row);
+  });
+  pastePreviewEl.hidden = false;
+}
+
+function openPasteDialog(): void {
+  if (!activeSession()?.local) return;
+  pasteInput.value = "";
+  pasteErrorEl.textContent = "";
+  pasteErrorEl.hidden = true;
+  pasteItems = [];
+  pastePreviewEl.textContent = "";
+  pastePreviewEl.hidden = true;
+  pasteModeEl.hidden = true;
+  pasteModeEl
+    .querySelectorAll<HTMLInputElement>('input[name="paste-mode"]')
+    .forEach((radio) => {
+      radio.checked = radio.value === "overwrite";
+    });
+  pasteOkBtn.hidden = true;
+  pasteDialog.showModal();
+  pasteInput.focus();
+}
+
+function parsePastedInput(): void {
+  const parsed = parsePastedQuestions(pasteInput.value);
+  if (!parsed.ok) {
+    pasteErrorEl.textContent =
+      parsed.reason === "duplicate"
+        ? `Duplicate numbers in paste: ${parsed.duplicates?.map((n) => `Q${n}`).join(", ")}`
+        : "No questions found — paste the agent's question blocks (❓ … ➡️ …) and try again";
+    pasteErrorEl.hidden = false;
+    pasteItems = [];
+    pastePreviewEl.textContent = "";
+    pastePreviewEl.hidden = true;
+    pasteModeEl.hidden = true;
+    pasteOkBtn.hidden = true;
+    return;
+  }
+  pasteErrorEl.hidden = true;
+  pasteItems = parsed.questions.map((question) => ({ include: true, ...question }));
+  pasteModeEl.hidden = false;
+  pasteOkBtn.hidden = false;
+  renderPastePreview();
+}
+
+function confirmPaste(): void {
+  if (!activeSession()?.local) return;
+  const items = pasteItems.filter((item) => item.include);
+  if (items.length === 0) {
+    showToast("Select at least one question");
+    return;
+  }
+  if (items.some((item) => !Number.isInteger(item.number) || item.number < 1)) {
+    showToast("Fix entry numbers first");
+    return;
+  }
+  const seen = new Set<number>();
+  const duplicates = new Set<number>();
+  items.forEach((item) =>
+    seen.has(item.number) ? duplicates.add(item.number) : seen.add(item.number),
+  );
+  if (duplicates.size > 0) {
+    showToast(`Duplicate numbers: ${[...duplicates].map((n) => `Q${n}`).join(", ")}`);
+    return;
+  }
+  const board = activeEntries();
+  const overwrite = pasteModeValue() === "overwrite";
+  const kept = overwrite
+    ? []
+    : board.filter((entry) => !items.some((item) => item.number === entry.number));
+  const imported = items.map((item) => {
+    const prior = overwrite
+      ? undefined
+      : board.find((entry) => entry.number === item.number);
+    if (
+      prior &&
+      prior.question === item.question &&
+      prior.recommendation === item.recommendation
+    )
+      return prior;
+    return {
+      id: nextId++,
+      number: item.number,
+      question: item.question,
+      recommendation: item.recommendation,
+      text: DEFAULT_ANSWER,
+      answered: false,
+    };
+  });
+  const merged = [...kept, ...imported].sort(byNumber);
+  pasteDialog.close();
+  board.splice(0, board.length, ...merged);
+  void saveEntries();
+  render();
+  showToast(`Imported ${imported.length} question${imported.length === 1 ? "" : "s"}`);
+}
+
 function applyThemeButtons(theme: Theme): void {
   themeBtns.forEach((btn) => {
     const active = btn.dataset.theme === theme;
@@ -1053,6 +1268,17 @@ renumberDialog
   ?.addEventListener("click", () => renumberDialog.close());
 attachStepper(renumberStepDownBtn, -1);
 attachStepper(renumberStepUpBtn, 1);
+pasteBtn.addEventListener("click", openPasteDialog);
+pasteParseBtn.addEventListener("click", parsePastedInput);
+pasteOkBtn.addEventListener("click", confirmPaste);
+pasteCancelBtn.addEventListener("click", () => pasteDialog.close());
+pasteDialog.addEventListener("click", (event) => {
+  if (event.target === pasteDialog) pasteDialog.close();
+});
+pasteDialog
+  .querySelector<HTMLButtonElement>(".dialog-close")
+  ?.addEventListener("click", () => pasteDialog.close());
+pasteModeEl.addEventListener("change", renderPastePreview);
 themeBtns.forEach((btn) =>
   btn.addEventListener("click", () => {
     if (isTheme(btn.dataset.theme)) {
