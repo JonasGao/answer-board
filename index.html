@@ -56,18 +56,22 @@
         <h2 class="dialog-title">Paste import</h2>
         <button class="dialog-close btn btn-icon" type="button" aria-label="Close paste dialog" title="Close">&#215;</button>
       </div>
-      <label class="field-label" for="paste-input">Agent output</label>
-      <textarea id="paste-input" class="paste-input" rows="8" spellcheck="false" placeholder="Paste text copied from the agent's terminal here. Question blocks (❓ Qn … ➡️ …) are extracted; everything else is ignored."></textarea>
-      <p id="paste-error" class="service-error" role="alert" hidden></p>
-      <div id="paste-preview" class="paste-preview" hidden></div>
-      <fieldset id="paste-mode" class="paste-mode" hidden>
-        <legend class="field-label">Apply as</legend>
-        <label class="paste-mode-option"><input type="radio" name="paste-mode" value="overwrite" checked /> Overwrite board</label>
-        <label class="paste-mode-option"><input type="radio" name="paste-mode" value="append" /> Append (same numbers replace)</label>
-      </fieldset>
-      <div class="dialog-actions">
-        <button id="paste-cancel" class="btn" type="button">Cancel</button>
-        <button id="paste-ok" class="btn btn-primary" type="button">Apply</button>
+      <div class="paste-body">
+        <label class="field-label" for="paste-input">Agent output</label>
+        <textarea id="paste-input" class="paste-input" rows="8" spellcheck="false" placeholder="Paste text copied from the agent's terminal here. Question blocks (❓ Qn … ➡️ …) are extracted; everything else is ignored."></textarea>
+        <p id="paste-error" class="service-error" role="alert" hidden></p>
+        <div id="paste-preview" class="paste-preview" hidden></div>
+      </div>
+      <div class="paste-footer">
+        <fieldset id="paste-mode" class="paste-mode" hidden>
+          <span class="paste-mode-label">Apply as</span>
+          <label class="paste-mode-option"><input type="radio" name="paste-mode" value="overwrite" checked /> Overwrite board</label>
+          <label class="paste-mode-option"><input type="radio" name="paste-mode" value="append" /> Append (same numbers replace)</label>
+        </fieldset>
+        <div class="dialog-actions">
+          <button id="paste-cancel" class="btn" type="button">Cancel</button>
+          <button id="paste-ok" class="btn btn-primary" type="button">Apply</button>
+        </div>
       </div>
     </dialog>
 
