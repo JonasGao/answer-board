@@ -221,7 +221,8 @@ body { margin: 0; background: var(--bg); }
 .paste-footer .dialog-actions { margin-top: 0; margin-left: auto; }
 
 .appearance-dialog { width: min(500px, calc(100vw - 24px)); }
-.paste-dialog { width: min(680px, calc(100vw - 24px)); display: flex; flex-direction: column; }
+.paste-dialog { width: min(680px, calc(100vw - 24px)); }
+.paste-dialog[open] { display: flex; flex-direction: column; }
 .reply-confirm-dialog { width: min(360px, calc(100vw - 24px)); }
 .reply-confirm-message { margin: 18px 0 0; color: var(--text); }
 .dialog-scroll { max-height: min(420px, calc(100vh - 166px)); overflow: auto; padding-right: 3px; }
