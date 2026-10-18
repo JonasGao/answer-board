@@ -31,6 +31,94 @@ const esc = (s) =>
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
 
+const THEME_CSS = `
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9;
+    --text: #1c1e21;
+    --muted: #65676b;
+    --card-bg: #fff;
+    --card-border: #e0e2e6;
+    --input-border: #d9dce1;
+    --opt-border: #e4e6ea;
+    --opt-hover: #b0b6bd;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --accent-bg: #f0f5ff;
+    --accent-text: #2563eb;
+    --shadow: rgba(37,99,235,.35);
+    --success: #16a34a;
+    --success-bg: #f0fdf4;
+    --success-border: #bbf7d0;
+    --success-text: #15803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #18191a;
+      --text: #e4e6eb;
+      --muted: #b0b3b8;
+      --card-bg: #242526;
+      --card-border: #3a3b3c;
+      --input-border: #3a3b3c;
+      --opt-border: #3a3b3c;
+      --opt-hover: #4e4f50;
+      --accent: #4895ef;
+      --accent-hover: #5da4f5;
+      --accent-bg: #1e2a3a;
+      --accent-text: #4895ef;
+      --shadow: rgba(72,149,239,.35);
+      --success: #22c55e;
+      --success-bg: #14261c;
+      --success-border: #1a3d2a;
+      --success-text: #4ade80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+         margin: 0; background: var(--bg); color: var(--text); line-height: 1.65; }
+`;
+
+function renderSuccessPage() {
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>已提交</title>
+<style>
+  ${THEME_CSS}
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .success-card {
+    background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px;
+    padding: 48px 56px; text-align: center; max-width: 420px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.08);
+    animation: fadeIn .4s ease-out;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .check-circle {
+    width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 20px;
+    background: var(--success-bg); border: 2px solid var(--success-border);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .check-circle svg { width: 36px; height: 36px; color: var(--success); }
+  h1 { font-size: 20px; margin: 0 0 8px; font-weight: 600; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0; }
+</style>
+</head>
+<body>
+<div class="success-card">
+  <div class="check-circle">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+  </div>
+  <h1>已收到回答</h1>
+  <p class="sub">本轮提问结束，可以关闭此页面。</p>
+</div>
+</body>
+</html>`;
+}
+
 function renderPage() {
   const facts = (quiz.facts || []).map((f) => `<li>${esc(f)}</li>`).join('');
   const defaults = (quiz.defaults || []).map((f) => `<li>${esc(f)}</li>`).join('');
@@ -62,42 +150,7 @@ function renderPage() {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(quiz.title)}</title>
 <style>
-  :root {
-    color-scheme: light dark;
-    --bg: #f6f7f9;
-    --text: #1c1e21;
-    --muted: #65676b;
-    --card-bg: #fff;
-    --card-border: #e0e2e6;
-    --input-border: #d9dce1;
-    --opt-border: #e4e6ea;
-    --opt-hover: #b0b6bd;
-    --accent: #2563eb;
-    --accent-hover: #1d4ed8;
-    --accent-bg: #f0f5ff;
-    --accent-text: #2563eb;
-    --shadow: rgba(37,99,235,.35);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #18191a;
-      --text: #e4e6eb;
-      --muted: #b0b3b8;
-      --card-bg: #242526;
-      --card-border: #3a3b3c;
-      --input-border: #3a3b3c;
-      --opt-border: #3a3b3c;
-      --opt-hover: #4e4f50;
-      --accent: #4895ef;
-      --accent-hover: #5da4f5;
-      --accent-bg: #1e2a3a;
-      --accent-text: #4895ef;
-      --shadow: rgba(72,149,239,.35);
-    }
-  }
-  * { box-sizing: border-box; }
-  body { font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-         margin: 0; background: var(--bg); color: var(--text); line-height: 1.65; }
+  ${THEME_CSS}
   .wrap { max-width: 820px; margin: 0 auto; padding: 32px 20px 80px; }
   h1 { font-size: 22px; margin: 0 0 4px; }
   .sub { color: var(--muted); margin-bottom: 20px; }
@@ -162,16 +215,60 @@ form.addEventListener('submit', async (e) => {
   if (!res.ok) { alert('提交失败：HTTP ' + res.status); return; }
   const doc = document.documentElement;
   while (doc.lastChild) doc.removeChild(doc.lastChild);
-  doc.appendChild(document.createElement('head'));
-  const bodyEl = document.createElement('body');
-  bodyEl.style.cssText = 'font-family:system-ui;padding:4rem;text-align:center;background:var(--bg);color:var(--text)';
+
+  const head = document.createElement('head');
+  const meta = document.createElement('meta');
+  meta.charset = 'utf-8';
+  head.appendChild(meta);
+  const title = document.createElement('title');
+  title.textContent = '已提交';
+  head.appendChild(title);
+  const style = document.createElement('style');
+  style.textContent = ${JSON.stringify(`
+    :root { color-scheme: light dark; --bg: #f6f7f9; --text: #1c1e21; --muted: #65676b; --card-bg: #fff; --card-border: #e0e2e6; --success: #16a34a; --success-bg: #f0fdf4; --success-border: #bbf7d0; --success-text: #15803d; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #18191a; --text: #e4e6eb; --muted: #b0b3b8; --card-bg: #242526; --card-border: #3a3b3c; --success: #22c55e; --success-bg: #14261c; --success-border: #1a3d2a; --success-text: #4ade80; } }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; margin: 0; background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .success-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; padding: 48px 56px; text-align: center; max-width: 420px; box-shadow: 0 8px 32px rgba(0,0,0,.08); animation: fadeIn .4s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    .check-circle { width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 20px; background: var(--success-bg); border: 2px solid var(--success-border); display: flex; align-items: center; justify-content: center; }
+    .check-circle svg { width: 36px; height: 36px; color: var(--success); }
+    h1 { font-size: 20px; margin: 0 0 8px; font-weight: 600; }
+    .sub { color: var(--muted); font-size: 14px; margin: 0; }
+  `)};
+  head.appendChild(style);
+  doc.appendChild(head);
+
+  const body = document.createElement('body');
+  const card = document.createElement('div');
+  card.className = 'success-card';
+
+  const circle = document.createElement('div');
+  circle.className = 'check-circle';
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2.5');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  polyline.setAttribute('points', '20 6 9 17 4 12');
+  svg.appendChild(polyline);
+  circle.appendChild(svg);
+  card.appendChild(circle);
+
   const h1 = document.createElement('h1');
-  h1.textContent = '✅ 已收到回答';
-  const p = document.createElement('p');
-  p.textContent = '本轮提问结束，可以关闭此页面。';
-  bodyEl.append(h1, p);
-  doc.appendChild(bodyEl);
-  document.title = '已提交';
+  h1.textContent = '已收到回答';
+  card.appendChild(h1);
+
+  const sub = document.createElement('p');
+  sub.className = 'sub';
+  sub.textContent = '本轮提问结束，可以关闭此页面。';
+  card.appendChild(sub);
+
+  body.appendChild(card);
+  doc.appendChild(body);
 });
 </script>
 </body>
@@ -203,11 +300,7 @@ const server = http.createServer((req, res) => {
       console.log('ANSWERS_RECEIVED round=' + answers.round);
       console.log(JSON.stringify(answers, null, 2));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(
-        '<!doctype html><meta charset="utf-8"><body style="font-family:system-ui;padding:4rem;text-align:center">' +
-          '<h1>✅ 已收到回答</h1><p>本轮提问结束，可以关闭此页面。</p></body>',
-        () => setTimeout(() => process.exit(0), 200)
-      );
+      res.end(renderSuccessPage(), () => setTimeout(() => process.exit(0), 200));
     });
     return;
   }
