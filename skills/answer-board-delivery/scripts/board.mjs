@@ -31,6 +31,28 @@ const esc = (s) =>
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
 
+function renderMarkdownBody(text) {
+  // HTML-escape first
+  let escaped = esc(text);
+
+  // Split by code blocks (```)
+  const parts = escaped.split(/```/);
+  let result = '';
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 0) {
+      // Normal text: \n → <br>, then `...` → <code>...</code>
+      let part = parts[i].replace(/\n/g, '<br>');
+      part = part.replace(/`([^`]+)`/g, '<code>$1</code>');
+      result += part;
+    } else {
+      // Code block: strip optional language id, wrap in <pre><code>
+      let code = parts[i].replace(/^[a-z]+\n/, '\n').replace(/^\n+|\n+$/g, '');
+      result += '<pre><code>' + code + '</code></pre>';
+    }
+  }
+  return result;
+}
+
 const THEME_CSS = `
   :root {
     color-scheme: light dark;
@@ -51,6 +73,9 @@ const THEME_CSS = `
     --success-bg: #f0fdf4;
     --success-border: #bbf7d0;
     --success-text: #15803d;
+    --code-bg: #f4f4f5;
+    --code-text: #1c1e21;
+    --code-border: #e0e2e6;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -71,6 +96,9 @@ const THEME_CSS = `
       --success-bg: #14261c;
       --success-border: #1a3d2a;
       --success-text: #4ade80;
+      --code-bg: #1e1e1e;
+      --code-text: #d4d4d4;
+      --code-border: #3a3b3c;
     }
   }
   * { box-sizing: border-box; }
@@ -136,7 +164,7 @@ function renderPage() {
       return `
       <section class="q" id="${esc(q.id)}">
         <h3>${esc(q.id)} — ${esc(q.title)}</h3>
-        <p class="q-body">${esc(q.body).replace(/\n/g, '<br>')}</p>
+        <div class="q-body">${renderMarkdownBody(q.body)}</div>
         <div class="opts">${opts}</div>
         <input class="note" type="text" name="${esc(q.id)}_note" placeholder="补充说明 / 不同意的理由（可选）">
       </section>`;
@@ -178,6 +206,18 @@ function renderPage() {
            font-size: 16px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px var(--shadow); }
   button:hover { background: var(--accent-hover); }
   .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  code {
+    background: var(--code-bg); color: var(--code-text); padding: 2px 6px; border-radius: 4px;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace; font-size: 13px;
+    border: 1px solid var(--code-border);
+  }
+  pre {
+    background: var(--code-bg); color: var(--code-text); padding: 12px 16px; border-radius: 8px;
+    overflow-x: auto; margin: 12px 0; border: 1px solid var(--code-border);
+  }
+  pre code {
+    background: transparent; padding: 0; border: 0; font-size: 13px; line-height: 1.5;
+  }
 </style>
 </head>
 <body>
@@ -189,7 +229,7 @@ function renderPage() {
     ${questions}
     <section class="q">
       <h3>总备注</h3>
-      <p class="q-body">任何想说的：推翻某条默认、补充约束、骂推荐答案……都写这里。</p>
+      <div class="q-body">任何想说的：推翻某条默认、补充约束、骂推荐答案……都写这里。</div>
       <textarea name="_global" placeholder="（可选）"></textarea>
     </section>
     <div class="submitbar">
