@@ -131,6 +131,10 @@ function renderSuccessPage() {
   .check-circle svg { width: 36px; height: 36px; color: var(--success); }
   h1 { font-size: 20px; margin: 0 0 8px; font-weight: 600; }
   .sub { color: var(--muted); font-size: 14px; margin: 0; }
+  .close-btn { margin-top: 24px; background: var(--accent); color: #fff; border: 0; border-radius: 10px;
+               padding: 10px 32px; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px var(--shadow); }
+  .close-btn:hover { background: var(--accent-hover); }
+  .close-hint { margin: 10px 0 0; color: var(--muted); font-size: 13px; min-height: 18px; }
 </style>
 </head>
 <body>
@@ -142,7 +146,15 @@ function renderSuccessPage() {
   </div>
   <h1>已收到回答</h1>
   <p class="sub">本轮提问结束，可以关闭此页面。</p>
+  <button class="close-btn" onclick="closeTab()">关闭标签页</button>
+  <p class="close-hint" id="closeHint"></p>
 </div>
+<script>
+function closeTab() {
+  window.close();
+  setTimeout(() => { document.getElementById('closeHint').textContent = '浏览器阻止了自动关闭，请手动关闭此标签页。'; }, 300);
+}
+</script>
 </body>
 </html>`;
 }
@@ -265,8 +277,8 @@ form.addEventListener('submit', async (e) => {
   head.appendChild(title);
   const style = document.createElement('style');
   style.textContent = ${JSON.stringify(`
-    :root { color-scheme: light dark; --bg: #f6f7f9; --text: #1c1e21; --muted: #65676b; --card-bg: #fff; --card-border: #e0e2e6; --success: #16a34a; --success-bg: #f0fdf4; --success-border: #bbf7d0; --success-text: #15803d; }
-    @media (prefers-color-scheme: dark) { :root { --bg: #18191a; --text: #e4e6eb; --muted: #b0b3b8; --card-bg: #242526; --card-border: #3a3b3c; --success: #22c55e; --success-bg: #14261c; --success-border: #1a3d2a; --success-text: #4ade80; } }
+    :root { color-scheme: light dark; --bg: #f6f7f9; --text: #1c1e21; --muted: #65676b; --card-bg: #fff; --card-border: #e0e2e6; --success: #16a34a; --success-bg: #f0fdf4; --success-border: #bbf7d0; --success-text: #15803d; --accent: #2563eb; --accent-hover: #1d4ed8; --shadow: rgba(37,99,235,.35); }
+    @media (prefers-color-scheme: dark) { :root { --bg: #18191a; --text: #e4e6eb; --muted: #b0b3b8; --card-bg: #242526; --card-border: #3a3b3c; --success: #22c55e; --success-bg: #14261c; --success-border: #1a3d2a; --success-text: #4ade80; --accent: #4895ef; --accent-hover: #5da4f5; --shadow: rgba(72,149,239,.35); } }
     * { box-sizing: border-box; }
     body { font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; margin: 0; background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; }
     .success-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; padding: 48px 56px; text-align: center; max-width: 420px; box-shadow: 0 8px 32px rgba(0,0,0,.08); animation: fadeIn .4s ease-out; }
@@ -275,6 +287,9 @@ form.addEventListener('submit', async (e) => {
     .check-circle svg { width: 36px; height: 36px; color: var(--success); }
     h1 { font-size: 20px; margin: 0 0 8px; font-weight: 600; }
     .sub { color: var(--muted); font-size: 14px; margin: 0; }
+    .close-btn { margin-top: 24px; background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 10px 32px; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px var(--shadow); }
+    .close-btn:hover { background: var(--accent-hover); }
+    .close-hint { margin: 10px 0 0; color: var(--muted); font-size: 13px; min-height: 18px; }
   `)};
   head.appendChild(style);
   doc.appendChild(head);
@@ -306,6 +321,18 @@ form.addEventListener('submit', async (e) => {
   sub.className = 'sub';
   sub.textContent = '本轮提问结束，可以关闭此页面。';
   card.appendChild(sub);
+
+  const hint = document.createElement('p');
+  hint.className = 'close-hint';
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'close-btn';
+  closeBtn.textContent = '关闭标签页';
+  closeBtn.addEventListener('click', () => {
+    window.close();
+    setTimeout(() => { hint.textContent = '浏览器阻止了自动关闭，请手动关闭此标签页。'; }, 300);
+  });
+  card.appendChild(closeBtn);
+  card.appendChild(hint);
 
   body.appendChild(card);
   doc.appendChild(body);
