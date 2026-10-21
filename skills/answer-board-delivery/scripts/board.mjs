@@ -230,6 +230,15 @@ function renderPage() {
   pre code {
     background: transparent; padding: 0; border: 0; font-size: 13px; line-height: 1.5;
   }
+  .q-body p { margin: 6px 0; }
+  .q-body h1, .q-body h2, .q-body h3, .q-body h4 { margin: 12px 0 6px; font-size: 15px; }
+  .q-body ul, .q-body ol { margin: 6px 0; padding-left: 22px; }
+  .q-body li { margin: 2px 0; }
+  .q-body blockquote { margin: 8px 0; padding: 4px 12px; border-left: 3px solid var(--card-border); color: var(--muted); }
+  .q-body table { border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+  .q-body th, .q-body td { border: 1px solid var(--card-border); padding: 4px 10px; }
+  .q-body a { color: var(--accent-text); }
+  .q-body hr { border: 0; border-top: 1px solid var(--card-border); margin: 10px 0; }
 </style>
 </head>
 <body>
@@ -250,7 +259,44 @@ function renderPage() {
     </div>
   </form>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/markdown-it@15.0.3/dist/browser/markdown-it.umd.min.js"
+        integrity="sha384-ARStLecQmtLYjBgfD3+w+irhiSoLTnFk/ne6c0gRWQKQtC9791ZLMQ9D3OaBISt3"
+        crossorigin="anonymous"></script>
 <script>
+// markdown 渐进增强：库就绪前保持服务端基础渲染（换行+代码块），就绪后原地升级
+const MD_BODIES = ${JSON.stringify(Object.fromEntries(quiz.questions.map((q) => [q.id, q.body]))).replace(/</g, '\\u003c')};
+let mdUpgraded = false;
+function upgradeMarkdown() {
+  if (mdUpgraded || typeof markdownit === 'undefined') return;
+  mdUpgraded = true;
+  const md = markdownit({ html: false, breaks: true, linkify: true, typographer: false });
+  const baseLinkOpen = md.renderer.rules.link_open || ((tokens, idx, opts, env, self) => self.renderToken(tokens, idx, opts));
+  md.renderer.rules.link_open = (tokens, idx, opts, env, self) => {
+    tokens[idx].attrSet('target', '_blank');
+    tokens[idx].attrSet('rel', 'noopener');
+    return baseLinkOpen(tokens, idx, opts, env, self);
+  };
+  for (const [id, raw] of Object.entries(MD_BODIES)) {
+    const el = document.querySelector('#' + CSS.escape(id) + ' .q-body');
+    if (el) el.innerHTML = md.render(raw);
+  }
+}
+function loadVendorMd() {
+  if (mdUpgraded) return;
+  const s = document.createElement('script');
+  s.src = '/vendor/markdown-it.min.js';
+  s.onload = upgradeMarkdown;
+  document.head.appendChild(s);
+}
+{
+  const cdnScript = document.querySelector('script[src*="markdown-it"]');
+  if (typeof markdownit !== 'undefined') upgradeMarkdown();
+  else {
+    cdnScript.addEventListener('load', upgradeMarkdown);
+    cdnScript.addEventListener('error', loadVendorMd);
+    setTimeout(loadVendorMd, 2000);
+  }
+}
 const form = document.getElementById('quiz');
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -343,6 +389,11 @@ form.addEventListener('submit', async (e) => {
 }
 
 const server = http.createServer((req, res) => {
+  if (req.method === 'GET' && req.url === '/vendor/markdown-it.min.js') {
+    res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
+    res.end(readFileSync(new URL('./vendor/markdown-it.min.js', import.meta.url)));
+    return;
+  }
   if (req.method === 'GET' && (req.url === '/' || req.url.startsWith('/?'))) {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(renderPage());
