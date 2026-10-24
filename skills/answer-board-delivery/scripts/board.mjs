@@ -164,21 +164,41 @@ function renderPage() {
   const defaults = (quiz.defaults || []).map((f) => `<li>${esc(f)}</li>`).join('');
   const questions = quiz.questions
     .map((q) => {
-      const opts = q.options
-        .map(
-          (o) => `
+      const type = q.type || 'choice';
+      const badges =
+        (type === 'multi' ? ' <em class="opt-tag">（可多选）</em>' : '') +
+        (q.optional ? ' <em class="opt-tag">（可跳过）</em>' : '');
+      let control;
+      if (type === 'text') {
+        control = `<textarea name="${esc(q.id)}" placeholder="${esc(q.placeholder || '')}">${esc(q.recommended || '')}</textarea>`;
+      } else {
+        const inputType = type === 'multi' ? 'checkbox' : 'radio';
+        const opts = (q.options || [])
+          .map(
+            (o) => `
         <label class="opt">
-          <input type="radio" name="${esc(q.id)}" value="${esc(o.key)}" ${o.recommended ? 'checked' : ''}>
+          <input type="${inputType}" name="${esc(q.id)}" value="${esc(o.key)}" ${o.recommended ? 'checked' : ''}>
           <span class="opt-text"><strong>${esc(o.key)}.</strong> ${esc(o.text)}${o.recommended ? ' <em class="rec">（推荐）</em>' : ''}${o.desc ? `<br><span class="desc">${esc(o.desc)}</span>` : ''}</span>
         </label>`
-        )
-        .join('');
+          )
+          .join('');
+        control = `<div class="opts">${opts}</div>`;
+      }
+      const note =
+        type === 'text'
+          ? ''
+          : `<input class="note" type="text" name="${esc(q.id)}_note" placeholder="补充说明 / 不同意的理由（可选）">`;
+      const prefill =
+        type === 'text' && q.recommended
+          ? '<div class="rec prefill">已预填推荐答案，可直接提交或修改</div>'
+          : '';
       return `
       <section class="q" id="${esc(q.id)}">
-        <h3>${esc(q.id)} — ${esc(q.title)}</h3>
+        <h3>${esc(q.id)} — ${esc(q.title)}${badges}</h3>
         <div class="q-body">${renderMarkdownBody(q.body)}</div>
-        <div class="opts">${opts}</div>
-        <input class="note" type="text" name="${esc(q.id)}_note" placeholder="补充说明 / 不同意的理由（可选）">
+        ${prefill}
+        ${control}
+        ${note}
       </section>`;
     })
     .join('\n');
@@ -208,6 +228,8 @@ function renderPage() {
   .opt:has(input:checked) { border-color: var(--accent); background: var(--accent-bg); }
   .opt input { margin-top: 4px; }
   .rec { color: var(--accent-text); font-style: normal; font-size: 12px; }
+  .opt-tag { color: var(--muted); font-style: normal; font-size: 12px; }
+  .prefill { margin: 0 0 6px; }
   .desc { color: var(--muted); font-size: 13px; }
   .note { width: 100%; margin-top: 10px; padding: 8px 10px; border: 1px solid var(--input-border); border-radius: 8px; font-size: 14px;
           background: var(--card-bg); color: var(--text); }
@@ -303,12 +325,23 @@ form.addEventListener('submit', async (e) => {
   const fd = new FormData(form);
   const payload = { round: ${JSON.stringify(quiz.round)}, answers: {}, global: fd.get('_global') || '' };
   const missing = [];
-  ${JSON.stringify(quiz.questions.map((q) => q.id))}.forEach((id) => {
-    const choice = fd.get(id);
-    if (!choice) { missing.push(id); return; }
-    payload.answers[id] = { choice, note: fd.get(id + '_note') || '' };
+  const QMETA = ${JSON.stringify(Object.fromEntries(quiz.questions.map((q) => [q.id, { type: q.type || 'choice', optional: !!q.optional }]))).replace(/</g, '\\u003c')};
+  Object.entries(QMETA).forEach(([id, meta]) => {
+    if (meta.type === 'text') {
+      const raw = fd.get(id) || '';
+      if (!raw.trim() && !meta.optional) { missing.push(id); return; }
+      payload.answers[id] = { text: raw };
+    } else if (meta.type === 'multi') {
+      const choices = fd.getAll(id);
+      if (!choices.length && !meta.optional) { missing.push(id); return; }
+      payload.answers[id] = { choices, note: fd.get(id + '_note') || '' };
+    } else {
+      const choice = fd.get(id) || '';
+      if (!choice && !meta.optional) { missing.push(id); return; }
+      payload.answers[id] = { choice, note: fd.get(id + '_note') || '' };
+    }
   });
-  if (missing.length) { alert('还有未选择的问题：' + missing.join(', ')); return; }
+  if (missing.length) { alert('还有未作答的问题：' + missing.join(', ')); return; }
   const res = await fetch('/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   if (!res.ok) { alert('提交失败：HTTP ' + res.status); return; }
   const doc = document.documentElement;

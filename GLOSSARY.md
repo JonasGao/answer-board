@@ -13,5 +13,9 @@ _Avoid_: 会话、批次、页面
 _Avoid_: 零依赖、无依赖
 
 **推荐项预选（Recommended pre-check）**:
-round JSON 中 `recommended: true` 的选项在页面上自动处于选中状态；用户全部同意即可直接提交。
+round JSON 中的推荐项在页面上自动就位：选择题 `recommended: true` 的选项自动 `checked`，文本题 `recommended` 字符串预填进输入框（用户可改）。用户全部同意即可直接提交。
 _Avoid_: 默认选中、预勾选
+
+**题型（Question type）**:
+`questions[].type` 区分的三种作答形式：`choice`（单选，默认可省略）、`multi`（多选）、`text`（开放填写）。任意题型可标 `optional: true` 允许留空提交，页面标「可跳过」。
+_Avoid_: 输入类型、问题种类

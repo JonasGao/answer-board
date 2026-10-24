@@ -1,6 +1,6 @@
 ---
 name: answer-board-delivery
-description: 用 answer-board 把一轮 grilling/结构化问题渲染成局域网网页表单（浏览器页面），让用户在页面上集中选择或填写；零安装的一次性 HTML 服务，支持推荐项预选，提交后服务自动退出，agent 拿到结构化 JSON 答案。当用户说「把这些问题做成网页让我选/填」「给我个页面回答这些问题」时也使用。
+description: 用 answer-board 把一轮 grilling/结构化问题渲染成局域网网页表单（浏览器页面），让用户在页面上集中作答；零安装的一次性 HTML 服务，支持单选/多选/开放文本三种题型与推荐项预选（文本题预填），提交后服务自动退出，agent 拿到结构化 JSON 答案。当用户说「把这些问题做成网页让我选/填」「给我个页面回答这些问题」时也使用。
 ---
 
 # Answer Board Delivery（简单 Node 服务版）
@@ -18,7 +18,7 @@ description: 用 answer-board 把一轮 grilling/结构化问题渲染成局域�
 - **不要自己写 Node.js 代码**，**必须**用本技能的 `scripts/ask.sh`
 - **一轮 = 一个进程**：用户提交后服务自动退出；出下一轮要重新启动
 - **问题格式是 JSON**，不是 grilling 原始 markdown（`❓ Qn` / `➡️`）；agent 要把 grilling 的原始问题转成 JSON
-- **推荐项要预选**：JSON 里 `options[].recommended: true` 的项会在页面上自动 `checked`，用户全部同意可直接提交
+- **推荐项要预选/预填**：选择题 `options[].recommended: true` 的项会在页面上自动 `checked`；文本题 `recommended` 是字符串，会预填进输入框（用户可改）。用户全部同意可直接提交
 - **不要在对话里复制问题块**：问题已经渲染在页面上了；agent 只等答案
 - **只在可信局域网使用，不要放敏感内容**：服务监听所有网卡（`0.0.0.0`）且无认证，知道 URL 的任何人都能查看问题并提交回答。这不只是安全边界，也是信任边界——题目会暴露你的计划，陌生人提交的回答会混进答案里、agent 无法分辨。所以不要把密码、密钥、敏感个人信息或未公开商业信息写进 round JSON；跨不可信网络时请改用其他投递方式
 
@@ -58,7 +58,7 @@ task 完成后，输出文件里会有：
 ---ANSWERS---
 {
   "round": N,
-  "answers": { "Q1": {"choice": "A", "note": "..."}, ... },
+  "answers": { "Q1": {"choice": "A", "note": "..."}, "Q2": {"choices": ["A","B"]}, "Q3": {"text": "..."} },
   "global": "..."
 }
 ```
@@ -95,7 +95,7 @@ task 完成后，输出文件里会有：
   "questions": [
     {
       "id": "Q1",
-      "title": "问题标题",
+      "title": "单选题标题",
       "body": "问题正文（支持 markdown，见下）",
       "options": [
         {
@@ -106,11 +106,27 @@ task 完成后，输出文件里会有：
         },
         {
           "key": "B",
-          "text": "另一选项",
-          "desc": "...",
-          "recommended": false
+          "text": "另一选项"
         }
       ]
+    },
+    {
+      "id": "Q2",
+      "type": "multi",
+      "title": "多选题标题",
+      "body": "问题正文（页面会标「可多选」）",
+      "options": [
+        { "key": "A", "text": "选项一", "recommended": true },
+        { "key": "B", "text": "选项二", "recommended": true }
+      ]
+    },
+    {
+      "id": "Q3",
+      "type": "text",
+      "title": "开放题标题",
+      "body": "问题正文（textarea 作答）",
+      "placeholder": "输入框占位提示（可选）",
+      "recommended": "预填的推荐答案（可选，用户可改）"
     }
   ]
 }
@@ -118,12 +134,16 @@ task 完成后，输出文件里会有：
 
 契约（脚本不做校验，靠 agent 写对；写错会在页面渲染或提交时暴露）：
 
-- 必填：`round`、`title`、`questions`、`questions[].id`、`questions[].title`、`questions[].body`、`questions[].options`、`questions[].options[].key`、`questions[].options[].text`
-- 可选：`subtitle`、`facts`、`defaults`、`questions[].options[].desc`、`questions[].options[].recommended`
-- `questions` 至少一题，每题 `options` 至少一项
+- 三种题型，由 `questions[].type` 区分：
+  - `choice`（默认，可省略）：单选
+  - `multi`：多选（checkbox，可勾多项）
+  - `text`：开放填写（textarea）
+- `choice` / `multi` 必须有 `options`（至少一项）；`text` 不写 `options`，可选 `placeholder`（占位提示）
+- 必填：`round`、`title`、`questions`、`questions[].id`、`questions[].title`、`questions[].body`、（choice/multi）`options[].key`、`options[].text`
+- 可选：`subtitle`、`facts`、`defaults`、`questions[].type`、`questions[].optional`、`questions[].options[].desc`、`questions[].options[].recommended`、`questions[].placeholder`（仅 text）
+- 所有题默认必答（没答完不能提交）；`optional: true` 允许留空提交，页面会标「可跳过」
 - 每个 `questions[].id` 在文件内唯一；同一题内 `options[].key` 唯一
-- 每题单选且必答
-- 每题 `recommended: true` 至多一个；如果希望用户全同意时可直接提交，每题应正好一个推荐项
+- `recommended`：`choice` 至多一项（预选）；`multi` 可多项（全部预勾）；`text` 是字符串（预填）。如果希望用户全同意时直接提交，每题都要有推荐：choice 正好一项、multi 一组、text 预填文本
 
 ### 答案文件（服务写出）
 
@@ -132,13 +152,17 @@ task 完成后，输出文件里会有：
   "round": 1,
   "answers": {
     "Q1": { "choice": "A", "note": "用户的补充说明" },
-    "Q2": { "choice": "B", "note": "" }
+    "Q2": { "choices": ["A", "B"], "note": "" },
+    "Q3": { "text": "用户填写的回答" }
   },
   "global": "总备注内容"
 }
 ```
 
-## 示例：最小 round.json
+- `text` 题没有 `note` 字段：正文就是回答本身，补充内容写总备注
+- 留空提交的 optional 题：choice 是 `{"choice": "", "note": ...}`、multi 是 `{"choices": [], "note": ...}`、text 是 `{"text": ""}`——键仍在，空值表示「跳过」
+
+## 示例：三种题型的 round.json
 
 ```json
 {
@@ -151,11 +175,28 @@ task 完成后，输出文件里会有：
     {
       "id": "Q1",
       "title": "选一个",
-      "body": "随便选一",
+      "body": "单选题，type 省略即 choice",
       "options": [
         { "key": "A", "text": "第一个", "recommended": true },
         { "key": "B", "text": "第二个" }
       ]
+    },
+    {
+      "id": "Q2",
+      "type": "multi",
+      "title": "选多个",
+      "body": "多选题",
+      "options": [
+        { "key": "A", "text": "甲", "recommended": true },
+        { "key": "B", "text": "乙" }
+      ]
+    },
+    {
+      "id": "Q3",
+      "type": "text",
+      "title": "写一段",
+      "body": "开放题",
+      "recommended": "预填示例，用户可改"
     }
   ]
 }
@@ -169,6 +210,8 @@ task 完成后，输出文件里会有：
 | `Error: questions file not found` | 路径错或没写 | 检查路径 |
 | `Failed to read questions: ...` | round JSON 语法错误 | 校验 round 文件（如 `node -e "JSON.parse(require('fs').readFileSync('<file>','utf8'))"`） |
 | 页面空白、请求时报错或问题串组 | JSON 结构不符合 schema 或 `id` 重复 | 检查必填字段和 `id`/`key` 唯一性 |
+| 开放题渲染成没有选项的单选框、无法作答 | 该题漏写 `"type": "text"`（默认按 choice 渲染） | 给开放题补上 `type` 字段 |
+| 多选题只能选一个 | `type` 写错或漏写（默认 choice） | 改成 `"type": "multi"` |
 | `Error: failed to find a free port` | 端口耗尽 | 重启服务或换机器 |
 | 服务启动后 10 秒内没打印 `LISTENING` | 端口被占用或启动卡住 | 检查 task 输出，必要时 kill 重试 |
 | 用户没提交、agent 等太久 | 正常——服务会一直等 | 不要轮询，等 task 完成通知 |
