@@ -15,7 +15,7 @@ description: 用 answer-board 把一轮 grilling/结构化问题渲染成局域�
 
 ## 关键约束
 
-- **不要自己写 Node.js 代码**，**必须**用本技能的 `scripts/ask.sh`
+- **不要自己写 Node.js 代码**，**必须**用本技能的 `scripts/ask.mjs`
 - **一轮 = 一个进程**：用户提交后服务自动退出；出下一轮要重新启动
 - **问题格式是 JSON**，不是 grilling 原始 markdown（`❓ Qn` / `➡️`）；agent 要把 grilling 的原始问题转成 JSON
 - **推荐项要预选/预填**：选择题 `options[].recommended: true` 的项会在页面上自动 `checked`；文本题 `recommended` 是字符串，会预填进输入框（用户可改）。用户全部同意可直接提交
@@ -31,7 +31,7 @@ description: 用 answer-board 把一轮 grilling/结构化问题渲染成局域�
 ### 2. 启动服务（后台运行）
 
 ```bash
-bash <skill_dir>/scripts/ask.sh --questions /tmp/round-N.json
+node <skill_dir>/scripts/ask.mjs --questions /tmp/round-N.json
 ```
 
 **以 `run_in_background: true` 运行**。脚本会：
@@ -47,7 +47,7 @@ bash <skill_dir>/scripts/ask.sh --questions /tmp/round-N.json
 
 ### 4. 等任务完成
 
-用户提交后，服务自动退出 → `board.mjs` 退出 → `ask.sh` 打印答案 → `ask.sh` 退出 → background task 完成通知触发。
+用户提交后，服务自动退出 → `board.mjs` 退出 → `ask.mjs` 打印答案 → `ask.mjs` 退出 → background task 完成通知触发。
 
 ### 5. 读答案
 
@@ -206,7 +206,7 @@ task 完成后，输出文件里会有：
 
 | 错误 | 原因 | 处理 |
 |------|------|------|
-| `Error: node is required but not found` | 系统没装 node | 安装 node |
+| `node: command not found`（启动命令时 shell 报） | 系统没装 node | 安装 node |
 | `Error: questions file not found` | 路径错或没写 | 检查路径 |
 | `Failed to read questions: ...` | round JSON 语法错误 | 校验 round 文件（如 `node -e "JSON.parse(require('fs').readFileSync('<file>','utf8'))"`） |
 | 页面空白、请求时报错或问题串组 | JSON 结构不符合 schema 或 `id` 重复 | 检查必填字段和 `id`/`key` 唯一性 |
