@@ -31,6 +31,10 @@ const esc = (s) =>
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
 
+const GLOBAL_FIELD = '__answer_board_global';
+const answerField = (id) => `__answer_board_q_${id}`;
+const noteField = (id) => `__answer_board_note_${id}`;
+
 function renderMarkdownBody(text) {
   // HTML-escape first
   let escaped = esc(text);
@@ -165,19 +169,21 @@ function renderPage() {
   const questions = quiz.questions
     .map((q) => {
       const type = q.type || 'choice';
+      const fieldName = answerField(q.id);
+      const noteName = noteField(q.id);
       const badges =
         (type === 'multi' ? ' <em class="opt-tag">（可多选）</em>' : '') +
         (q.optional ? ' <em class="opt-tag">（可跳过）</em>' : '');
       let control;
       if (type === 'text') {
-        control = `<textarea name="${esc(q.id)}" placeholder="${esc(q.placeholder || '')}">${esc(q.recommended || '')}</textarea>`;
+        control = `<textarea name="${esc(fieldName)}" placeholder="${esc(q.placeholder || '')}">${esc(q.recommended || '')}</textarea>`;
       } else {
         const inputType = type === 'multi' ? 'checkbox' : 'radio';
         const opts = (q.options || [])
           .map(
             (o) => `
         <label class="opt">
-          <input type="${inputType}" name="${esc(q.id)}" value="${esc(o.key)}" ${o.recommended ? 'checked' : ''}>
+          <input type="${inputType}" name="${esc(fieldName)}" value="${esc(o.key)}" ${o.recommended ? 'checked' : ''}>
           <span class="opt-text"><strong>${esc(o.key)}.</strong> ${esc(o.text)}${o.recommended ? ' <em class="rec">（推荐）</em>' : ''}${o.desc ? `<br><span class="desc">${esc(o.desc)}</span>` : ''}</span>
         </label>`
           )
@@ -187,7 +193,7 @@ function renderPage() {
       const note =
         type === 'text'
           ? ''
-          : `<input class="note" type="text" name="${esc(q.id)}_note" placeholder="补充说明 / 不同意的理由（可选）">`;
+          : `<input class="note" type="text" name="${esc(noteName)}" placeholder="补充说明 / 不同意的理由（可选）">`;
       const prefill =
         type === 'text' && q.recommended
           ? '<div class="rec prefill">已预填推荐答案，可直接提交或修改</div>'
@@ -239,6 +245,7 @@ function renderPage() {
   button { background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 12px 48px;
            font-size: 16px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px var(--shadow); }
   button:hover { background: var(--accent-hover); }
+  button:disabled { opacity: .65; cursor: wait; }
   .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
   code {
     background: var(--code-bg); color: var(--code-text); padding: 2px 6px; border-radius: 4px;
@@ -273,7 +280,7 @@ function renderPage() {
     <section class="q">
       <h3>总备注</h3>
       <div class="q-body">任何想说的：推翻某条默认、补充约束、骂推荐答案……都写这里。</div>
-      <textarea name="_global" placeholder="（可选）"></textarea>
+      <textarea name="${GLOBAL_FIELD}" placeholder="（可选）"></textarea>
     </section>
     <div class="submitbar">
       <button type="submit">提交回答</button>
@@ -320,30 +327,46 @@ function loadVendorMd() {
   }
 }
 const form = document.getElementById('quiz');
+const GLOBAL_FIELD = ${JSON.stringify(GLOBAL_FIELD)};
+const answerField = (id) => '__answer_board_q_' + id;
+const noteField = (id) => '__answer_board_note_' + id;
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(form);
-  const payload = { round: ${JSON.stringify(quiz.round)}, answers: {}, global: fd.get('_global') || '' };
+  const payload = { round: ${JSON.stringify(quiz.round)}, answers: Object.create(null), global: fd.get(GLOBAL_FIELD) || '' };
   const missing = [];
   const QMETA = ${JSON.stringify(Object.fromEntries(quiz.questions.map((q) => [q.id, { type: q.type || 'choice', optional: !!q.optional }]))).replace(/</g, '\\u003c')};
   Object.entries(QMETA).forEach(([id, meta]) => {
     if (meta.type === 'text') {
-      const raw = fd.get(id) || '';
+      const raw = fd.get(answerField(id)) || '';
       if (!raw.trim() && !meta.optional) { missing.push(id); return; }
       payload.answers[id] = { text: raw };
     } else if (meta.type === 'multi') {
-      const choices = fd.getAll(id);
+      const choices = fd.getAll(answerField(id));
       if (!choices.length && !meta.optional) { missing.push(id); return; }
-      payload.answers[id] = { choices, note: fd.get(id + '_note') || '' };
+      payload.answers[id] = { choices, note: fd.get(noteField(id)) || '' };
     } else {
-      const choice = fd.get(id) || '';
+      const choice = fd.get(answerField(id)) || '';
       if (!choice && !meta.optional) { missing.push(id); return; }
-      payload.answers[id] = { choice, note: fd.get(id + '_note') || '' };
+      payload.answers[id] = { choice, note: fd.get(noteField(id)) || '' };
     }
   });
   if (missing.length) { alert('还有未作答的问题：' + missing.join(', ')); return; }
-  const res = await fetch('/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-  if (!res.ok) { alert('提交失败：HTTP ' + res.status); return; }
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton) submitButton.disabled = true;
+  let res;
+  try {
+    res = await fetch('/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  } catch {
+    if (submitButton) submitButton.disabled = false;
+    alert('提交失败：无法连接服务');
+    return;
+  }
+  if (!res.ok) {
+    if (submitButton) submitButton.disabled = false;
+    alert('提交失败：HTTP ' + res.status);
+    return;
+  }
   const doc = document.documentElement;
   while (doc.lastChild) doc.removeChild(doc.lastChild);
 
@@ -421,6 +444,8 @@ form.addEventListener('submit', async (e) => {
 </html>`;
 }
 
+let submissionInProgress = false;
+let submitted = false;
 const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/vendor/markdown-it.min.js') {
     res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
@@ -433,21 +458,48 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (req.method === 'POST' && req.url === '/submit') {
+    if (submissionInProgress || submitted) {
+      res.writeHead(409, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('submission already received');
+      return;
+    }
+    submissionInProgress = true;
     let body = '';
+    let rejected = false;
+    req.on('aborted', () => {
+      if (!submitted) submissionInProgress = false;
+    });
     req.on('data', (c) => {
+      if (rejected) return;
       body += c;
-      if (body.length > 1e6) req.destroy();
+      if (body.length > 1e6) {
+        rejected = true;
+        submissionInProgress = false;
+        res.writeHead(413, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('payload too large');
+        req.destroy();
+      }
     });
     req.on('end', () => {
+      if (rejected) return;
       let answers;
       try {
         answers = JSON.parse(body);
       } catch {
+        submissionInProgress = false;
         res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
         res.end('bad json');
         return;
       }
-      writeFileSync(answersPath, JSON.stringify(answers, null, 2) + '\n');
+      try {
+        writeFileSync(answersPath, JSON.stringify(answers, null, 2) + '\n');
+      } catch {
+        submissionInProgress = false;
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('failed to write answers');
+        return;
+      }
+      submitted = true;
       console.log('ANSWERS_RECEIVED round=' + answers.round);
       console.log(JSON.stringify(answers, null, 2));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
