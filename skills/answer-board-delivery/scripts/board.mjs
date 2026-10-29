@@ -106,7 +106,7 @@ const THEME_CSS = `
     }
   }
   * { box-sizing: border-box; }
-  body { font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  body { font-family: sans-serif;
          margin: 0; background: var(--bg); color: var(--text); line-height: 1.65; }
 `;
 
@@ -249,7 +249,7 @@ function renderPage() {
   .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
   code {
     background: var(--code-bg); color: var(--code-text); padding: 2px 6px; border-radius: 4px;
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace; font-size: 13px;
+    font-family: monospace; font-size: 13px;
     border: 1px solid var(--code-border);
   }
   pre {
@@ -382,7 +382,7 @@ form.addEventListener('submit', async (e) => {
     :root { color-scheme: light dark; --bg: #f6f7f9; --text: #1c1e21; --muted: #65676b; --card-bg: #fff; --card-border: #e0e2e6; --success: #16a34a; --success-bg: #f0fdf4; --success-border: #bbf7d0; --success-text: #15803d; --accent: #2563eb; --accent-hover: #1d4ed8; --shadow: rgba(37,99,235,.35); }
     @media (prefers-color-scheme: dark) { :root { --bg: #18191a; --text: #e4e6eb; --muted: #b0b3b8; --card-bg: #242526; --card-border: #3a3b3c; --success: #22c55e; --success-bg: #14261c; --success-border: #1a3d2a; --success-text: #4ade80; --accent: #4895ef; --accent-hover: #5da4f5; --shadow: rgba(72,149,239,.35); } }
     * { box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; margin: 0; background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    body { font-family: sans-serif; margin: 0; background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; }
     .success-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; padding: 48px 56px; text-align: center; max-width: 420px; box-shadow: 0 8px 32px rgba(0,0,0,.08); animation: fadeIn .4s ease-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
     .check-circle { width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 20px; background: var(--success-bg); border: 2px solid var(--success-border); display: flex; align-items: center; justify-content: center; }
