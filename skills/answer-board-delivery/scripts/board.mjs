@@ -110,14 +110,8 @@ const THEME_CSS = `
          margin: 0; background: var(--bg); color: var(--text); line-height: 1.65; }
 `;
 
-function renderSuccessPage() {
-  return `<!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>已提交</title>
-<style>
+// 成功页三件套（样式/卡片/关闭脚本）由服务端响应页与客户端就地重建共用，只维护这一份
+const SUCCESS_CSS = `
   ${THEME_CSS}
   body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
   .success-card {
@@ -139,9 +133,9 @@ function renderSuccessPage() {
                padding: 10px 32px; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px var(--shadow); }
   .close-btn:hover { background: var(--accent-hover); }
   .close-hint { margin: 10px 0 0; color: var(--muted); font-size: 13px; min-height: 18px; }
-</style>
-</head>
-<body>
+`;
+
+const SUCCESS_CARD_HTML = `
 <div class="success-card">
   <div class="check-circle">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -149,16 +143,47 @@ function renderSuccessPage() {
     </svg>
   </div>
   <h1>已收到回答</h1>
-  <p class="sub">本轮提问结束，可以关闭此页面。</p>
-  <button class="close-btn" onclick="closeTab()">关闭标签页</button>
+  <p class="sub">本轮提问结束。</p>
+  <button class="close-btn" type="button">关闭标签页</button>
   <p class="close-hint" id="closeHint"></p>
-</div>
-<script>
-function closeTab() {
-  window.close();
-  setTimeout(() => { document.getElementById('closeHint').textContent = '浏览器阻止了自动关闭，请手动关闭此标签页。'; }, 300);
-}
-</script>
+</div>`;
+
+// 浏览器只允许脚本关闭「由脚本打开」的标签页；从地址栏或外链直接打开的页面无法自动关闭。
+// 所以先静默尝试 window.close()（能关的场合页面直接消失，用户零点击），关不掉再按平台给出
+// 手动关闭指引——而不是报错式的「浏览器阻止了自动关闭」。
+const CLOSE_JS = `
+(function () {
+  var hint = document.getElementById('closeHint');
+  var coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+  var mac = /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
+  function guidance() {
+    if (coarse) return '回答已提交，直接划掉此页面即可。';
+    return mac ? '回答已提交，按 ⌘W 关闭本页即可。' : '回答已提交，按 Ctrl+W 关闭本页即可。';
+  }
+  function tryClose() {
+    window.close();
+    setTimeout(function () {
+      if (!window.closed && hint) hint.textContent = guidance();
+    }, 250);
+  }
+  var btn = document.querySelector('.close-btn');
+  if (btn) btn.addEventListener('click', tryClose);
+  tryClose();
+})();
+`;
+
+function renderSuccessPage() {
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>✓ 已提交</title>
+<style>${SUCCESS_CSS}</style>
+</head>
+<body>
+${SUCCESS_CARD_HTML}
+<script>${CLOSE_JS}</script>
 </body>
 </html>`;
 }
@@ -367,77 +392,33 @@ form.addEventListener('submit', async (e) => {
     alert('提交失败：HTTP ' + res.status);
     return;
   }
+  // 就地重建成功页：样式、卡片结构和关闭脚本全部来自服务端的 SUCCESS_* 常量，两处不会漂移
   const doc = document.documentElement;
   while (doc.lastChild) doc.removeChild(doc.lastChild);
 
   const head = document.createElement('head');
   const meta = document.createElement('meta');
-  meta.charset = 'utf-8';
+  meta.setAttribute('charset', 'utf-8');
   head.appendChild(meta);
+  const viewport = document.createElement('meta');
+  viewport.setAttribute('name', 'viewport');
+  viewport.setAttribute('content', 'width=device-width, initial-scale=1');
+  head.appendChild(viewport);
   const title = document.createElement('title');
-  title.textContent = '已提交';
+  title.textContent = '✓ 已提交';
   head.appendChild(title);
   const style = document.createElement('style');
-  style.textContent = ${JSON.stringify(`
-    :root { color-scheme: light dark; --bg: #f6f7f9; --text: #1c1e21; --muted: #65676b; --card-bg: #fff; --card-border: #e0e2e6; --success: #16a34a; --success-bg: #f0fdf4; --success-border: #bbf7d0; --success-text: #15803d; --accent: #2563eb; --accent-hover: #1d4ed8; --shadow: rgba(37,99,235,.35); }
-    @media (prefers-color-scheme: dark) { :root { --bg: #18191a; --text: #e4e6eb; --muted: #b0b3b8; --card-bg: #242526; --card-border: #3a3b3c; --success: #22c55e; --success-bg: #14261c; --success-border: #1a3d2a; --success-text: #4ade80; --accent: #4895ef; --accent-hover: #5da4f5; --shadow: rgba(72,149,239,.35); } }
-    * { box-sizing: border-box; }
-    body { font-family: sans-serif; margin: 0; background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-    .success-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; padding: 48px 56px; text-align: center; max-width: 420px; box-shadow: 0 8px 32px rgba(0,0,0,.08); animation: fadeIn .4s ease-out; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-    .check-circle { width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 20px; background: var(--success-bg); border: 2px solid var(--success-border); display: flex; align-items: center; justify-content: center; }
-    .check-circle svg { width: 36px; height: 36px; color: var(--success); }
-    h1 { font-size: 20px; margin: 0 0 8px; font-weight: 600; }
-    .sub { color: var(--muted); font-size: 14px; margin: 0; }
-    .close-btn { margin-top: 24px; background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 10px 32px; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px var(--shadow); }
-    .close-btn:hover { background: var(--accent-hover); }
-    .close-hint { margin: 10px 0 0; color: var(--muted); font-size: 13px; min-height: 18px; }
-  `)};
+  style.textContent = ${JSON.stringify(SUCCESS_CSS).replace(/</g, '\\u003c')};
   head.appendChild(style);
   doc.appendChild(head);
 
   const body = document.createElement('body');
-  const card = document.createElement('div');
-  card.className = 'success-card';
-
-  const circle = document.createElement('div');
-  circle.className = 'check-circle';
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('fill', 'none');
-  svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', '2.5');
-  svg.setAttribute('stroke-linecap', 'round');
-  svg.setAttribute('stroke-linejoin', 'round');
-  const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-  polyline.setAttribute('points', '20 6 9 17 4 12');
-  svg.appendChild(polyline);
-  circle.appendChild(svg);
-  card.appendChild(circle);
-
-  const h1 = document.createElement('h1');
-  h1.textContent = '已收到回答';
-  card.appendChild(h1);
-
-  const sub = document.createElement('p');
-  sub.className = 'sub';
-  sub.textContent = '本轮提问结束，可以关闭此页面。';
-  card.appendChild(sub);
-
-  const hint = document.createElement('p');
-  hint.className = 'close-hint';
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'close-btn';
-  closeBtn.textContent = '关闭标签页';
-  closeBtn.addEventListener('click', () => {
-    window.close();
-    setTimeout(() => { hint.textContent = '浏览器阻止了自动关闭，请手动关闭此标签页。'; }, 300);
-  });
-  card.appendChild(closeBtn);
-  card.appendChild(hint);
-
-  body.appendChild(card);
+  // SUCCESS_CARD_HTML 是编译期静态常量，不含任何用户输入，innerHTML 无 XSS 面
+  body.innerHTML = ${JSON.stringify(SUCCESS_CARD_HTML).replace(/</g, '\\u003c')};
   doc.appendChild(body);
+  const closeScript = document.createElement('script'); // createElement 注入的 script 会执行，innerHTML 解析出的不会
+  closeScript.textContent = ${JSON.stringify(CLOSE_JS).replace(/</g, '\\u003c')};
+  body.appendChild(closeScript);
 });
 </script>
 </body>
