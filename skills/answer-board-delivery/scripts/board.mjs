@@ -127,8 +127,8 @@ const SUCCESS_CSS = `
     display: flex; align-items: center; justify-content: center;
   }
   .check-circle svg { width: 36px; height: 36px; color: var(--success); }
-  h1 { font-size: 20px; margin: 0 0 8px; font-weight: 600; }
-  .sub { color: var(--muted); font-size: 14px; margin: 0; }
+  h1 { font-size: 23px; margin: 0 0 8px; font-weight: 600; }
+  .sub { color: var(--muted); font-size: 16px; margin: 0; }
   .close-btn { margin-top: 24px; background: var(--accent); color: #fff; border: 0; border-radius: 10px;
                padding: 10px 32px; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px var(--shadow); }
   .close-btn:hover { background: var(--accent-hover); }
@@ -243,18 +243,18 @@ function renderPage() {
 <style>
   ${THEME_CSS}
   .wrap { max-width: 820px; margin: 0 auto; padding: 32px 20px 80px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
+  h1 { font-size: 25px; margin: 0 0 4px; }
   .sub { color: var(--muted); margin-bottom: 20px; }
   details { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px 16px; margin-bottom: 24px; }
   summary { cursor: pointer; font-weight: 600; }
   details ul { margin: 8px 0 4px; padding-left: 20px; }
-  details li { margin: 4px 0; font-size: 14px; color: var(--text); }
+  details li { margin: 4px 0; font-size: 16px; color: var(--text); }
   .q { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; }
-  .q h3 { margin: 0 0 6px; font-size: 16px; }
-  .q-body { margin: 0 0 12px; font-size: 14px; color: var(--text); white-space: normal; }
+  .q h3 { margin: 0 0 6px; font-size: 18px; }
+  .q-body { margin: 0 0 12px; font-size: 16px; color: var(--text); white-space: normal; }
   .opts { display: flex; flex-direction: column; gap: 8px; }
   .opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--opt-border); border-radius: 8px;
-         padding: 10px 12px; cursor: pointer; font-size: 14px; }
+         padding: 10px 12px; cursor: pointer; font-size: 16px; }
   .opt:hover { border-color: var(--opt-hover); }
   .opt:has(input:checked) { border-color: var(--accent); background: var(--accent-bg); }
   .opt input { margin-top: 4px; }
@@ -262,9 +262,9 @@ function renderPage() {
   .opt-tag { color: var(--muted); font-style: normal; font-size: 12px; }
   .prefill { margin: 0 0 6px; }
   .desc { color: var(--muted); font-size: 13px; }
-  .note { width: 100%; margin-top: 10px; padding: 8px 10px; border: 1px solid var(--input-border); border-radius: 8px; font-size: 14px;
+  .note { width: 100%; margin-top: 10px; padding: 8px 10px; border: 1px solid var(--input-border); border-radius: 8px; font-size: 16px;
           background: var(--card-bg); color: var(--text); }
-  textarea { width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--input-border); border-radius: 10px; font-size: 14px; font-family: inherit;
+  textarea { width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--input-border); border-radius: 10px; font-size: 16px; font-family: inherit;
              background: var(--card-bg); color: var(--text); }
   .submitbar { position: sticky; bottom: 12px; margin-top: 20px; text-align: center; }
   button { background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 12px 48px;
@@ -285,7 +285,7 @@ function renderPage() {
     background: transparent; padding: 0; border: 0; font-size: 13px; line-height: 1.5;
   }
   .q-body p { margin: 6px 0; }
-  .q-body h1, .q-body h2, .q-body h3, .q-body h4 { margin: 12px 0 6px; font-size: 15px; }
+  .q-body h1, .q-body h2, .q-body h3, .q-body h4 { margin: 12px 0 6px; font-size: 17px; }
   .q-body ul, .q-body ol { margin: 6px 0; padding-left: 22px; }
   .q-body li { margin: 2px 0; }
   .q-body blockquote { margin: 8px 0; padding: 4px 12px; border-left: 3px solid var(--card-border); color: var(--muted); }
