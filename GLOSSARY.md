@@ -19,3 +19,11 @@ _Avoid_: 默认选中、预勾选
 **题型（Question type）**:
 `questions[].type` 区分的三种作答形式：`choice`（单选，默认可省略）、`multi`（多选）、`text`（开放填写）。任意题型可标 `optional: true` 允许留空提交，页面标「可跳过」。
 _Avoid_: 输入类型、问题种类
+
+**可调文档宽度（Adjustable document width）**:
+页面主内容列的宽度：默认 820px，由问题 JSON 顶层 `width` 设初始值，用户在页面顶部拖动覆盖；同一轮刷新后保留，超出窗口宽度时夹到窗口宽度。
+_Avoid_: 响应式断点、布局宽度
+
+**表格滚动容器（Table scroll container）**:
+Markdown 渲染后包住每个表格的独立容器：宽度不超过正文列，表头不换行、内容换行，表格溢出时只在这个容器内横向滚动。
+_Avoid_: 响应式表格、表格折叠

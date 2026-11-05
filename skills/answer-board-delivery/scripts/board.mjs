@@ -80,6 +80,9 @@ const THEME_CSS = `
     --code-bg: #f4f4f5;
     --code-text: #1c1e21;
     --code-border: #e0e2e6;
+    --table-head-bg: #f1f3f6;
+    --table-row-alt: #fafbfc;
+    --table-scroll-thumb: #c4c9d0;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -103,11 +106,16 @@ const THEME_CSS = `
       --code-bg: #1e1e1e;
       --code-text: #d4d4d4;
       --code-border: #3a3b3c;
+      --table-head-bg: #2e3033;
+      --table-row-alt: #282a2c;
+      --table-scroll-thumb: #4a4d51;
     }
   }
   * { box-sizing: border-box; }
   body { font-family: sans-serif;
          margin: 0; background: var(--bg); color: var(--text); line-height: 1.65; }
+  ::selection { background: var(--accent-bg); color: var(--text); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 `;
 
 // 成功页三件套（样式/卡片/关闭脚本）由服务端响应页与客户端就地重建共用，只维护这一份
@@ -188,6 +196,15 @@ ${SUCCESS_CARD_HTML}
 </html>`;
 }
 
+// round JSON 可给表格密集的轮次一个更宽的初始宽度；非有限数字一律回落到标准宽度。
+// 客户端仍以用户在页面上的调节（localStorage）为准，超出窗口的部分由 CSS 的 max-width: 100% 夹住。
+const DEFAULT_DOC_WIDTH = 820;
+const requestedWidth = quiz.width;
+const INITIAL_DOC_WIDTH =
+  typeof requestedWidth === 'number' && Number.isFinite(requestedWidth)
+    ? Math.min(Math.max(Math.round(requestedWidth), 640), 4000)
+    : DEFAULT_DOC_WIDTH;
+
 function renderPage() {
   const facts = (quiz.facts || []).map((f) => `<li>${esc(f)}</li>`).join('');
   const defaults = (quiz.defaults || []).map((f) => `<li>${esc(f)}</li>`).join('');
@@ -242,7 +259,34 @@ function renderPage() {
 <title>${esc(quiz.title)}</title>
 <style>
   ${THEME_CSS}
-  .wrap { max-width: 820px; margin: 0 auto; padding: 32px 20px 80px; }
+  :root { --doc-width: ${INITIAL_DOC_WIDTH}px; }
+  .wrap { width: var(--doc-width); max-width: 100%; margin: 0 auto; padding: 32px 20px 80px; }
+  .widthbar {
+    position: sticky; top: 0; z-index: 30;
+    background: var(--bg); border-bottom: 1px solid var(--card-border);
+  }
+  .widthbar-inner {
+    display: flex; align-items: center; gap: 12px;
+    width: 100%; max-width: 1120px; margin: 0 auto; padding: 8px 20px;
+  }
+  .widthbar label { font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+  .widthbar input[type="range"] {
+    flex: 1 1 auto; min-width: 80px; max-width: 420px;
+    accent-color: var(--accent); cursor: pointer;
+  }
+  .widthbar output {
+    min-width: 68px; text-align: right; white-space: nowrap;
+    font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums;
+  }
+  .widthbar button {
+    padding: 5px 12px; font-size: 13px; font-weight: 500; box-shadow: none; border-radius: 8px;
+    background: var(--card-bg); color: var(--muted); border: 1px solid var(--input-border);
+  }
+  .widthbar button:hover { background: var(--card-bg); color: var(--accent-text); border-color: var(--accent); }
+  @media (max-width: 640px) {
+    .widthbar { display: none; }
+    .wrap { padding-top: 24px; }
+  }
   h1 { font-size: 25px; margin: 0 0 4px; }
   .sub { color: var(--muted); margin-bottom: 20px; }
   details { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px 16px; margin-bottom: 24px; }
@@ -251,7 +295,8 @@ function renderPage() {
   details li { margin: 4px 0; font-size: 16px; color: var(--text); }
   .q { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; }
   .q h3 { margin: 0 0 6px; font-size: 18px; }
-  .q-body { margin: 0 0 12px; font-size: 16px; color: var(--text); white-space: normal; }
+  .q-body { margin: 0 0 12px; font-size: 16px; color: var(--text); white-space: normal; overflow-wrap: break-word; }
+  .q-body img { max-width: 100%; height: auto; }
   .opts { display: flex; flex-direction: column; gap: 8px; }
   .opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--opt-border); border-radius: 8px;
          padding: 10px 12px; cursor: pointer; font-size: 16px; }
@@ -289,13 +334,48 @@ function renderPage() {
   .q-body ul, .q-body ol { margin: 6px 0; padding-left: 22px; }
   .q-body li { margin: 2px 0; }
   .q-body blockquote { margin: 8px 0; padding: 4px 12px; border-left: 3px solid var(--card-border); color: var(--muted); }
-  .q-body table { border-collapse: collapse; margin: 8px 0; font-size: 13px; }
-  .q-body th, .q-body td { border: 1px solid var(--card-border); padding: 4px 10px; }
+  .q-body .table-scroll {
+    max-width: 100%; margin: 12px 0; overflow-x: auto; overscroll-behavior-x: contain;
+    border: 1px solid var(--card-border); border-radius: 8px; background: var(--card-bg);
+  }
+  .q-body .table-scroll:focus-visible { outline-offset: -2px; }
+  .q-body .table-scroll table {
+    width: 100%; margin: 0; border-collapse: collapse;
+    font-size: 14px; line-height: 1.55; font-variant-numeric: tabular-nums;
+  }
+  .q-body th, .q-body td {
+    padding: 8px 12px; vertical-align: top; text-align: left;
+    border-right: 1px solid var(--card-border); border-bottom: 1px solid var(--card-border);
+  }
+  .q-body th { white-space: nowrap; background: var(--table-head-bg); font-weight: 600; }
+  .q-body td { white-space: normal; overflow-wrap: anywhere; }
+  .q-body th:last-child, .q-body td:last-child { border-right: 0; }
+  .q-body tbody tr:last-child th, .q-body tbody tr:last-child td { border-bottom: 0; }
+  .q-body tbody tr:nth-child(even) { background: var(--table-row-alt); }
+  pre, .q-body .table-scroll { scrollbar-width: thin; scrollbar-color: var(--table-scroll-thumb) transparent; }
+  pre::-webkit-scrollbar, .q-body .table-scroll::-webkit-scrollbar { height: 10px; }
+  pre::-webkit-scrollbar-track, .q-body .table-scroll::-webkit-scrollbar-track { background: transparent; }
+  pre::-webkit-scrollbar-thumb {
+    background: var(--table-scroll-thumb); border-radius: 999px; border: 2px solid var(--code-bg);
+  }
+  .q-body .table-scroll::-webkit-scrollbar-thumb {
+    background: var(--table-scroll-thumb); border-radius: 999px; border: 2px solid var(--card-bg);
+  }
   .q-body a { color: var(--accent-text); }
   .q-body hr { border: 0; border-top: 1px solid var(--card-border); margin: 10px 0; }
 </style>
 </head>
 <body>
+<div class="widthbar">
+  <div class="widthbar-inner">
+    <label for="widthRange">文档宽度</label>
+    <input type="range" id="widthRange" min="640" max="1200" step="1"
+           value="${INITIAL_DOC_WIDTH}" title="拖动调整文档宽度">
+    <output id="widthValue" for="widthRange">${INITIAL_DOC_WIDTH} px</output>
+    <button type="button" id="widthDefault">标准</button>
+    <button type="button" id="widthFull">全宽</button>
+  </div>
+</div>
 <div class="wrap">
   <h1>${esc(quiz.title)}</h1>
   <div class="sub">${esc(quiz.subtitle || '')} 推荐项已预选：全部同意就直接点最下面的「提交回答」。</div>
@@ -317,6 +397,74 @@ function renderPage() {
         integrity="sha384-ARStLecQmtLYjBgfD3+w+irhiSoLTnFk/ne6c0gRWQKQtC9791ZLMQ9D3OaBISt3"
         crossorigin="anonymous"></script>
 <script>
+// 文档宽度调节：round JSON 给初始值，用户的选择存 localStorage（同一轮刷新后保留）。
+// 新轮次会换端口，localStorage 不会跨轮次生效，跨轮次的初始宽度由 round JSON 的 width 决定。
+const DEFAULT_DOC_WIDTH = ${DEFAULT_DOC_WIDTH};
+const INITIAL_DOC_WIDTH = ${INITIAL_DOC_WIDTH};
+const WIDTH_KEY = 'answer-board:docWidth';
+const widthRange = document.getElementById('widthRange');
+const widthValue = document.getElementById('widthValue');
+const wrapEl = document.querySelector('.wrap');
+let overflowSyncQueued = false;
+
+function maxDocWidth() {
+  return Math.max(1200, Math.round(window.innerWidth));
+}
+function setDocWidth(px, save) {
+  const max = maxDocWidth();
+  widthRange.max = String(max);
+  const w = Math.min(Math.max(Math.round(px) || DEFAULT_DOC_WIDTH, 640), max);
+  widthRange.value = String(w);
+  document.documentElement.style.setProperty('--doc-width', w + 'px');
+  widthValue.textContent = Math.round(wrapEl.getBoundingClientRect().width) + ' px';
+  if (save) {
+    try { localStorage.setItem(WIDTH_KEY, String(w)); } catch {}
+  }
+  scheduleOverflowSync();
+}
+function scheduleOverflowSync() {
+  if (overflowSyncQueued) return;
+  overflowSyncQueued = true;
+  requestAnimationFrame(() => { overflowSyncQueued = false; syncTableScroll(); });
+}
+// 只有真的溢出的表格才变成可聚焦滚动区域，键盘用户也能用方向键横向滚动。
+function syncTableScroll() {
+  document.querySelectorAll('.table-scroll').forEach((box) => {
+    if (box.scrollWidth > box.clientWidth + 1) {
+      if (!box.hasAttribute('tabindex')) {
+        box.setAttribute('tabindex', '0');
+        box.setAttribute('role', 'region');
+        box.setAttribute('aria-label', '表格，可横向滚动');
+      }
+    } else {
+      box.removeAttribute('tabindex');
+      box.removeAttribute('role');
+      box.removeAttribute('aria-label');
+    }
+  });
+}
+function wrapTables(root) {
+  root.querySelectorAll('table').forEach((table) => {
+    if (table.parentElement && table.parentElement.classList.contains('table-scroll')) return;
+    const scroller = document.createElement('div');
+    scroller.className = 'table-scroll';
+    table.parentNode.insertBefore(scroller, table);
+    scroller.appendChild(table);
+  });
+}
+widthRange.addEventListener('input', () => setDocWidth(Number(widthRange.value), true));
+document.getElementById('widthDefault').addEventListener('click', () => {
+  try { localStorage.removeItem(WIDTH_KEY); } catch {}
+  setDocWidth(DEFAULT_DOC_WIDTH, false);
+});
+document.getElementById('widthFull').addEventListener('click', () => setDocWidth(window.innerWidth, true));
+window.addEventListener('resize', () => setDocWidth(Number(widthRange.value), false));
+{
+  let stored = null;
+  try { stored = Number(localStorage.getItem(WIDTH_KEY)); } catch {}
+  setDocWidth(Number.isFinite(stored) && stored > 0 ? stored : INITIAL_DOC_WIDTH, false);
+}
+
 // markdown 渐进增强：库就绪前保持服务端基础渲染（换行+代码块），就绪后原地升级
 const MD_BODIES = ${JSON.stringify(Object.fromEntries(quiz.questions.map((q) => [q.id, q.body]))).replace(/</g, '\\u003c')};
 let mdUpgraded = false;
@@ -332,8 +480,9 @@ function upgradeMarkdown() {
   };
   for (const [id, raw] of Object.entries(MD_BODIES)) {
     const el = document.querySelector('#' + CSS.escape(id) + ' .q-body');
-    if (el) el.innerHTML = md.render(raw);
+    if (el) { el.innerHTML = md.render(raw); wrapTables(el); }
   }
+  scheduleOverflowSync();
 }
 function loadVendorMd() {
   if (mdUpgraded) return;

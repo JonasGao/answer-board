@@ -71,6 +71,10 @@ node <skill_dir>/scripts/ask.mjs --questions /tmp/round-N.json
 
 `questions[].body` 使用 Markdown 渲染：markdown-it CDN 优先，本地 vendor 副本回退，两个脚本都不可用时保留服务端的换行、行内代码和代码块基础渲染。原始 HTML 不透传。不要把 HTML 标签当作 body 的输入格式。
 
+表格表头不换行，只有内容换行；宽表格在正文列内横向滚动，不会撑破卡片。
+
+页面文档宽度默认 820px，顶部有宽度滑动条和「标准 / 全宽」快捷键；用户调节在同一轮刷新后保留。表格密集的轮次可在问题 JSON 顶层写 `width`（px）作为初始宽度，见 [references/round-schema.md](references/round-schema.md)。
+
 ## 常见故障
 
 - `node: command not found`：运行环境没有 Node。
