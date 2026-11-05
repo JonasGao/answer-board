@@ -266,7 +266,7 @@ function renderPage() {
     background: var(--bg); border-bottom: 1px solid var(--card-border);
   }
   .widthbar-inner {
-    display: flex; align-items: center; gap: 12px;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
     width: 100%; max-width: 1120px; margin: 0 auto; padding: 8px 20px;
   }
   .widthbar label { font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; }
