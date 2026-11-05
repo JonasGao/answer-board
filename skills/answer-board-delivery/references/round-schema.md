@@ -59,6 +59,7 @@
 - `choice`：单选；`type` 可省略，省略时默认为 `choice`。
 - `multi`：多选；使用 checkbox，不设置机器强制的最少或最多选择数。
 - `text`：开放填写；使用 textarea，不带题目级 `note` 字段。
+- `choice` 和 `multi` 的补充说明是多行文本框：默认一行高，输入时自动换行并随内容增高或缩回；`text` 不带该控件。
 - `choice` 和 `multi` 必须有至少一个 option；`text` 不需要 options。
 - 所有题默认必答；`optional: true` 允许留空提交。
 - `choice` 最多一个 `recommended: true`；`multi` 可以有多个；`text` 的 `recommended` 必须是预填字符串。

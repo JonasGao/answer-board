@@ -235,7 +235,7 @@ function renderPage() {
       const note =
         type === 'text'
           ? ''
-          : `<input class="note" type="text" name="${esc(noteName)}" placeholder="补充说明 / 不同意的理由（可选）">`;
+          : `<textarea class="note" rows="1" wrap="soft" name="${esc(noteName)}" aria-label="补充说明" placeholder="补充说明 / 不同意的理由（可选）"></textarea>`;
       const prefill =
         type === 'text' && q.recommended
           ? '<div class="rec prefill">已预填推荐答案，可直接提交或修改</div>'
@@ -307,8 +307,9 @@ function renderPage() {
   .opt-tag { color: var(--muted); font-style: normal; font-size: 12px; }
   .prefill { margin: 0 0 6px; }
   .desc { color: var(--muted); font-size: 13px; }
-  .note { width: 100%; margin-top: 10px; padding: 8px 10px; border: 1px solid var(--input-border); border-radius: 8px; font-size: 16px;
-          background: var(--card-bg); color: var(--text); }
+  .note { display: block; width: 100%; margin-top: 10px; padding: 8px 10px; border: 1px solid var(--input-border); border-radius: 8px; font-size: 16px;
+          font-family: inherit; line-height: 1.65; background: var(--card-bg); color: var(--text);
+          min-height: 0; resize: none; overflow: hidden; white-space: pre-wrap; overflow-wrap: break-word; }
   textarea { width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--input-border); border-radius: 10px; font-size: 16px; font-family: inherit;
              background: var(--card-bg); color: var(--text); }
   .submitbar { position: sticky; bottom: 12px; margin-top: 20px; text-align: center; }
@@ -364,6 +365,7 @@ function renderPage() {
   .q-body a { color: var(--accent-text); }
   .q-body hr { border: 0; border-top: 1px solid var(--card-border); margin: 10px 0; }
 </style>
+<noscript><style>.note { height: 5em; overflow-y: auto; }</style></noscript>
 </head>
 <body>
 <div class="widthbar">
@@ -421,6 +423,8 @@ function setDocWidth(px, save) {
     try { localStorage.setItem(WIDTH_KEY, String(w)); } catch {}
   }
   scheduleOverflowSync();
+  // 列宽变了会改变换行数，补充说明框的高度必须跟着重算
+  autoGrowNotes();
 }
 function scheduleOverflowSync() {
   if (overflowSyncQueued) return;
@@ -452,6 +456,21 @@ function wrapTables(root) {
     scroller.appendChild(table);
   });
 }
+// 补充说明：默认一行，输入时自动换行并随内容增高/缩回。
+// box-sizing 是 border-box，scrollHeight 只含 padding，故补回上下边框宽度，避免末尾裁掉 2px。
+function autoGrowNote(el) {
+  el.style.height = 'auto';
+  const cs = getComputedStyle(el);
+  const border = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+  el.style.height = (el.scrollHeight + border) + 'px';
+}
+function autoGrowNotes() {
+  document.querySelectorAll('.note').forEach(autoGrowNote);
+}
+document.querySelectorAll('.note').forEach((el) => {
+  el.addEventListener('input', () => autoGrowNote(el));
+});
+
 widthRange.addEventListener('input', () => setDocWidth(Number(widthRange.value), true));
 document.getElementById('widthDefault').addEventListener('click', () => {
   try { localStorage.removeItem(WIDTH_KEY); } catch {}
