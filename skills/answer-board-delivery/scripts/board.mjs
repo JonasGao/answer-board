@@ -60,6 +60,8 @@ function renderMarkdownBody(text) {
 const THEME_CSS = `
   :root {
     color-scheme: light dark;
+    --font-size-base: 16px;
+    font-size: var(--font-size-base);
     --bg: #f6f7f9;
     --text: #1c1e21;
     --muted: #65676b;
@@ -135,12 +137,12 @@ const SUCCESS_CSS = `
     display: flex; align-items: center; justify-content: center;
   }
   .check-circle svg { width: 36px; height: 36px; color: var(--success); }
-  h1 { font-size: 23px; margin: 0 0 8px; font-weight: 600; }
-  .sub { color: var(--muted); font-size: 16px; margin: 0; }
+  h1 { font-size: 1.4375rem; margin: 0 0 8px; font-weight: 600; }
+  .sub { color: var(--muted); font-size: 1rem; margin: 0; }
   .close-btn { margin-top: 24px; background: var(--accent); color: #fff; border: 0; border-radius: 10px;
-               padding: 10px 32px; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px var(--shadow); }
+               padding: 10px 32px; font-size: 0.9375rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px var(--shadow); }
   .close-btn:hover { background: var(--accent-hover); }
-  .close-hint { margin: 10px 0 0; color: var(--muted); font-size: 13px; min-height: 18px; }
+  .close-hint { margin: 10px 0 0; color: var(--muted); font-size: 0.8125rem; min-height: 18px; }
 `;
 
 const SUCCESS_CARD_HTML = `
@@ -230,12 +232,13 @@ function renderPage() {
         </label>`
           )
           .join('');
-        control = `<div class="opts">${opts}</div>`;
+        control = `<div class="opts">${opts}</div>
+        <button type="button" class="clear-choices">以上都不合适</button>`;
       }
       const note =
         type === 'text'
           ? ''
-          : `<textarea class="note" rows="1" wrap="soft" name="${esc(noteName)}" aria-label="补充说明" placeholder="补充说明 / 不同意的理由（可选）"></textarea>`;
+          : `<textarea class="note" rows="1" wrap="soft" name="${esc(noteName)}" aria-label="补充说明或完整回答" placeholder="补充说明；不选选项时请在此填写完整回答"></textarea>`;
       const prefill =
         type === 'text' && q.recommended
           ? '<div class="rec prefill">已预填推荐答案，可直接提交或修改</div>'
@@ -261,66 +264,68 @@ function renderPage() {
   ${THEME_CSS}
   :root { --doc-width: ${INITIAL_DOC_WIDTH}px; }
   .wrap { width: var(--doc-width); max-width: 100%; margin: 0 auto; padding: 32px 20px 80px; }
-  .widthbar {
-    position: sticky; top: 0; z-index: 30;
-    background: var(--bg); border-bottom: 1px solid var(--card-border);
-  }
-  .widthbar-inner {
-    display: flex; align-items: center; justify-content: center; gap: 12px;
+  .toolbar { background: var(--bg); border-bottom: 1px solid var(--card-border); }
+  .toolbar-inner {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 24px;
     width: 100%; max-width: 1120px; margin: 0 auto; padding: 8px 20px;
   }
-  .widthbar label { font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; }
-  .widthbar input[type="range"] {
-    flex: 1 1 auto; min-width: 80px; max-width: 420px;
+  .toolbar-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+  .toolbar label { font-size: 0.8125rem; font-weight: 600; color: var(--muted); white-space: nowrap; }
+  .toolbar input[type="range"] {
+    flex: 1 1 120px; min-width: 80px; max-width: 420px;
     accent-color: var(--accent); cursor: pointer;
   }
-  .widthbar output {
+  .toolbar output {
     min-width: 68px; text-align: right; white-space: nowrap;
-    font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums;
+    font-size: 0.8125rem; color: var(--text); font-variant-numeric: tabular-nums;
   }
-  .widthbar button {
-    padding: 5px 12px; font-size: 13px; font-weight: 500; box-shadow: none; border-radius: 8px;
+  .toolbar button {
+    padding: 5px 12px; font-size: 0.8125rem; font-weight: 500; box-shadow: none; border-radius: 8px;
     background: var(--card-bg); color: var(--muted); border: 1px solid var(--input-border);
   }
-  .widthbar button:hover { background: var(--card-bg); color: var(--accent-text); border-color: var(--accent); }
+  .toolbar button:hover { background: var(--card-bg); color: var(--accent-text); border-color: var(--accent); }
   @media (max-width: 640px) {
-    .widthbar { display: none; }
     .wrap { padding-top: 24px; }
   }
-  h1 { font-size: 25px; margin: 0 0 4px; }
+  h1 { font-size: 1.5625rem; margin: 0 0 4px; }
   .sub { color: var(--muted); margin-bottom: 20px; }
   details { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px 16px; margin-bottom: 24px; }
   summary { cursor: pointer; font-weight: 600; }
   details ul { margin: 8px 0 4px; padding-left: 20px; }
-  details li { margin: 4px 0; font-size: 16px; color: var(--text); }
+  details li { margin: 4px 0; font-size: 1rem; color: var(--text); }
   .q { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; }
-  .q h3 { margin: 0 0 6px; font-size: 18px; }
-  .q-body { margin: 0 0 12px; font-size: 16px; color: var(--text); white-space: normal; overflow-wrap: break-word; }
+  .q h3 { margin: 0 0 6px; font-size: 1.125rem; }
+  .q-body { margin: 0 0 12px; font-size: 1rem; color: var(--text); white-space: normal; overflow-wrap: break-word; }
   .q-body img { max-width: 100%; height: auto; }
   .opts { display: flex; flex-direction: column; gap: 8px; }
   .opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--opt-border); border-radius: 8px;
-         padding: 10px 12px; cursor: pointer; font-size: 16px; }
+         padding: 10px 12px; cursor: pointer; font-size: 1rem; }
   .opt:hover { border-color: var(--opt-hover); }
   .opt:has(input:checked) { border-color: var(--accent); background: var(--accent-bg); }
   .opt input { margin-top: 4px; }
-  .rec { color: var(--accent-text); font-style: normal; font-size: 12px; }
-  .opt-tag { color: var(--muted); font-style: normal; font-size: 12px; }
+  .rec { color: var(--accent-text); font-style: normal; font-size: 0.75rem; }
+  .opt-tag { color: var(--muted); font-style: normal; font-size: 0.75rem; }
   .prefill { margin: 0 0 6px; }
-  .desc { color: var(--muted); font-size: 13px; }
-  .note { display: block; width: 100%; margin-top: 10px; padding: 8px 10px; border: 1px solid var(--input-border); border-radius: 8px; font-size: 16px;
+  .desc { color: var(--muted); font-size: 0.8125rem; }
+  .clear-choices {
+    margin-top: 8px; padding: 5px 10px; border: 1px solid var(--input-border); border-radius: 8px;
+    background: var(--card-bg); color: var(--muted); box-shadow: none; font-size: 0.8125rem; font-weight: 500;
+  }
+  .clear-choices:hover { background: var(--card-bg); color: var(--accent-text); border-color: var(--accent); }
+  .note { display: block; width: 100%; margin-top: 10px; padding: 8px 10px; border: 1px solid var(--input-border); border-radius: 8px; font-size: 1rem;
           font-family: inherit; line-height: 1.65; background: var(--card-bg); color: var(--text);
           min-height: 0; resize: none; overflow: hidden; white-space: pre-wrap; overflow-wrap: break-word; }
-  textarea { width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--input-border); border-radius: 10px; font-size: 16px; font-family: inherit;
+  textarea { width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--input-border); border-radius: 10px; font-size: 1rem; font-family: inherit;
              background: var(--card-bg); color: var(--text); }
   .submitbar { position: sticky; bottom: 12px; margin-top: 20px; text-align: center; }
   button { background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 12px 48px;
-           font-size: 16px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px var(--shadow); }
+           font-size: 1rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px var(--shadow); }
   button:hover { background: var(--accent-hover); }
   button:disabled { opacity: .65; cursor: wait; }
-  .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  .hint { color: var(--muted); font-size: 0.8125rem; margin-top: 8px; }
   code {
     background: var(--code-bg); color: var(--code-text); padding: 2px 6px; border-radius: 4px;
-    font-family: monospace; font-size: 13px;
+    font-family: monospace; font-size: 0.8125rem;
     border: 1px solid var(--code-border);
   }
   pre {
@@ -328,10 +333,14 @@ function renderPage() {
     overflow-x: auto; margin: 12px 0; border: 1px solid var(--code-border);
   }
   pre code {
-    background: transparent; padding: 0; border: 0; font-size: 13px; line-height: 1.5;
+    background: transparent; padding: 0; border: 0; font-size: 0.8125rem; line-height: 1.5;
   }
   .q-body p { margin: 6px 0; }
-  .q-body h1, .q-body h2, .q-body h3, .q-body h4 { margin: 12px 0 6px; font-size: 17px; }
+  .q-body h1, .q-body h2, .q-body h3, .q-body h4 { margin: 12px 0 6px; }
+  .q-body h1 { font-size: 1.5rem; }
+  .q-body h2 { font-size: 1.25rem; }
+  .q-body h3 { font-size: 1.125rem; }
+  .q-body h4 { font-size: 1rem; }
   .q-body ul, .q-body ol { margin: 6px 0; padding-left: 22px; }
   .q-body li { margin: 2px 0; }
   .q-body blockquote { margin: 8px 0; padding: 4px 12px; border-left: 3px solid var(--card-border); color: var(--muted); }
@@ -342,7 +351,7 @@ function renderPage() {
   .q-body .table-scroll:focus-visible { outline-offset: -2px; }
   .q-body .table-scroll table {
     width: 100%; margin: 0; border-collapse: collapse;
-    font-size: 14px; line-height: 1.55; font-variant-numeric: tabular-nums;
+    font-size: 0.875rem; line-height: 1.55; font-variant-numeric: tabular-nums;
   }
   .q-body th, .q-body td {
     padding: 8px 12px; vertical-align: top; text-align: left;
@@ -368,14 +377,23 @@ function renderPage() {
 <noscript><style>.note { height: 5em; overflow-y: auto; }</style></noscript>
 </head>
 <body>
-<div class="widthbar">
-  <div class="widthbar-inner">
-    <label for="widthRange">文档宽度</label>
-    <input type="range" id="widthRange" min="640" max="1200" step="1"
-           value="${INITIAL_DOC_WIDTH}" title="拖动调整文档宽度">
-    <output id="widthValue" for="widthRange">${INITIAL_DOC_WIDTH} px</output>
-    <button type="button" id="widthDefault">标准</button>
-    <button type="button" id="widthFull">全宽</button>
+<div class="toolbar">
+  <div class="toolbar-inner">
+    <div class="toolbar-group">
+      <label for="widthRange">文档宽度</label>
+      <input type="range" id="widthRange" min="640" max="1200" step="1"
+             value="${INITIAL_DOC_WIDTH}" title="拖动调整文档宽度">
+      <output id="widthValue" for="widthRange">${INITIAL_DOC_WIDTH} px</output>
+      <button type="button" id="widthDefault">标准</button>
+      <button type="button" id="widthFull">全宽</button>
+    </div>
+    <div class="toolbar-group">
+      <label for="fontSizeRange">基础字号</label>
+      <input type="range" id="fontSizeRange" min="14" max="28" step="1"
+             value="16" title="拖动调整全页基础字号">
+      <output id="fontSizeValue" for="fontSizeRange">16 px</output>
+      <button type="button" id="fontSizeDefault">标准</button>
+    </div>
   </div>
 </div>
 <div class="wrap">
@@ -399,13 +417,19 @@ function renderPage() {
         integrity="sha384-ARStLecQmtLYjBgfD3+w+irhiSoLTnFk/ne6c0gRWQKQtC9791ZLMQ9D3OaBISt3"
         crossorigin="anonymous"></script>
 <script>
-// 文档宽度调节：round JSON 给初始值，用户的选择存 localStorage（同一轮刷新后保留）。
-// 新轮次会换端口，localStorage 不会跨轮次生效，跨轮次的初始宽度由 round JSON 的 width 决定。
+// 宽度与基础字号偏好存 localStorage。ask.mjs 从固定默认端口递增选择，
+// 因此同一 origin 下会跨轮、跨项目保留；不同主机或端口仍各自隔离。
 const DEFAULT_DOC_WIDTH = ${DEFAULT_DOC_WIDTH};
 const INITIAL_DOC_WIDTH = ${INITIAL_DOC_WIDTH};
 const WIDTH_KEY = 'answer-board:docWidth';
+const DEFAULT_FONT_SIZE = 16;
+const MIN_FONT_SIZE = 14;
+const MAX_FONT_SIZE = 28;
+const FONT_SIZE_KEY = 'answer-board:fontSize';
 const widthRange = document.getElementById('widthRange');
 const widthValue = document.getElementById('widthValue');
+const fontSizeRange = document.getElementById('fontSizeRange');
+const fontSizeValue = document.getElementById('fontSizeValue');
 const wrapEl = document.querySelector('.wrap');
 let overflowSyncQueued = false;
 
@@ -424,6 +448,18 @@ function setDocWidth(px, save) {
   }
   scheduleOverflowSync();
   // 列宽变了会改变换行数，补充说明框的高度必须跟着重算
+  autoGrowNotes();
+}
+function setFontSize(px, save) {
+  const size = Math.min(Math.max(Math.round(px) || DEFAULT_FONT_SIZE, MIN_FONT_SIZE), MAX_FONT_SIZE);
+  fontSizeRange.value = String(size);
+  document.documentElement.style.setProperty('--font-size-base', size + 'px');
+  fontSizeValue.textContent = size + ' px';
+  if (save) {
+    try { localStorage.setItem(FONT_SIZE_KEY, String(size)); } catch {}
+  }
+  // 字号变化也会影响表格溢出和说明框的换行高度。
+  scheduleOverflowSync();
   autoGrowNotes();
 }
 function scheduleOverflowSync() {
@@ -470,7 +506,22 @@ function autoGrowNotes() {
 document.querySelectorAll('.note').forEach((el) => {
   el.addEventListener('input', () => autoGrowNote(el));
 });
+document.querySelectorAll('.clear-choices').forEach((button) => {
+  button.addEventListener('click', () => {
+    const question = button.closest('.q');
+    question.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach((input) => {
+      input.checked = false;
+    });
+    const note = question.querySelector('.note');
+    if (note) note.focus();
+  });
+});
 
+fontSizeRange.addEventListener('input', () => setFontSize(Number(fontSizeRange.value), true));
+document.getElementById('fontSizeDefault').addEventListener('click', () => {
+  try { localStorage.removeItem(FONT_SIZE_KEY); } catch {}
+  setFontSize(DEFAULT_FONT_SIZE, false);
+});
 widthRange.addEventListener('input', () => setDocWidth(Number(widthRange.value), true));
 document.getElementById('widthDefault').addEventListener('click', () => {
   try { localStorage.removeItem(WIDTH_KEY); } catch {}
@@ -482,6 +533,11 @@ window.addEventListener('resize', () => setDocWidth(Number(widthRange.value), fa
   let stored = null;
   try { stored = Number(localStorage.getItem(WIDTH_KEY)); } catch {}
   setDocWidth(Number.isFinite(stored) && stored > 0 ? stored : INITIAL_DOC_WIDTH, false);
+}
+{
+  let stored = null;
+  try { stored = Number(localStorage.getItem(FONT_SIZE_KEY)); } catch {}
+  setFontSize(Number.isFinite(stored) && stored > 0 ? stored : DEFAULT_FONT_SIZE, false);
 }
 
 // markdown 渐进增强：库就绪前保持服务端基础渲染（换行+代码块），就绪后原地升级
@@ -536,12 +592,14 @@ form.addEventListener('submit', async (e) => {
       payload.answers[id] = { text: raw };
     } else if (meta.type === 'multi') {
       const choices = fd.getAll(answerField(id));
-      if (!choices.length && !meta.optional) { missing.push(id); return; }
-      payload.answers[id] = { choices, note: fd.get(noteField(id)) || '' };
+      const note = fd.get(noteField(id)) || '';
+      if (!choices.length && !note.trim() && !meta.optional) { missing.push(id); return; }
+      payload.answers[id] = { choices, note };
     } else {
       const choice = fd.get(answerField(id)) || '';
-      if (!choice && !meta.optional) { missing.push(id); return; }
-      payload.answers[id] = { choice, note: fd.get(noteField(id)) || '' };
+      const note = fd.get(noteField(id)) || '';
+      if (!choice && !note.trim() && !meta.optional) { missing.push(id); return; }
+      payload.answers[id] = { choice, note };
     }
   });
   if (missing.length) { alert('还有未作答的问题：' + missing.join(', ')); return; }

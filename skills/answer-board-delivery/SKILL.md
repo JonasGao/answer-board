@@ -31,6 +31,7 @@ argument-hint: "[持续投递=on|off] [访问地址]"
 - 一轮只启动一个 ask 进程；提交后 ask、board 和等待任务都应退出。
 - 问题输入必须是 JSON；完整字段契约见 [references/round-schema.md](references/round-schema.md)。
 - choice、multi 和 text 的题型必须使用契约中的明确值。推荐项用于预选或预填，不代表用户已经同意。
+- choice 和 multi 可通过「以上都不合适」清空选项，仅填写补充说明作答；必答题要求选项或说明至少一个，`optional: true` 仍允许完全留空。
 - 服务监听 `0.0.0.0` 且没有认证。只在用户和服务处于同一可信网络时使用，不要把密码、密钥、敏感个人信息或未公开商业信息放进 round JSON。
 
 ## 投递流程
@@ -47,7 +48,7 @@ node <skill_dir>/scripts/ask.mjs --questions /tmp/round-N.json
 
 使用当前执行环境支持的后台任务方式运行，并保留任务或进程 ID。若执行器提供后台选项，启用它；不要让前台等待任务阻塞后续对话。启动输出包含：
 
-- `Using port: NNNNN`：包装进程选定的端口
+- `Using port: NNNNN`：包装进程从 19876 开始递增选定的端口
 - `LISTENING http://...`：可访问地址
 - 提交后 `---ANSWERS_FILE---` 与 `---ANSWERS---`：答案位置和内容
 
@@ -73,14 +74,16 @@ node <skill_dir>/scripts/ask.mjs --questions /tmp/round-N.json
 
 表格表头不换行，只有内容换行；宽表格在正文列内横向滚动，不会撑破卡片。
 
-页面文档宽度默认 820px，顶部有宽度滑动条和「标准 / 全宽」快捷键；用户调节在同一轮刷新后保留。表格密集的轮次可在问题 JSON 顶层写 `width`（px）作为初始宽度，见 [references/round-schema.md](references/round-schema.md)。
+页面顶部工具条提供文档宽度和基础字号滑块。文档宽度默认 820px，提供「标准 / 全宽」快捷键；表格密集的轮次可在问题 JSON 顶层写 `width`（px）作为初始宽度，见 [references/round-schema.md](references/round-schema.md)。基础字号默认 16px，可在 14–28px 间调整，页面所有文字按比例缩放，「标准」恢复默认值。
+
+工具条位于文档顶部但随页面滚动，窄屏换行且保留两组控制。宽度和字号偏好存于 `localStorage`，服务从 19876 起递增选择端口，因此同一 origin 下会跨轮、跨项目保留；不同主机或端口的偏好互不影响。
 
 ## 常见故障
 
 - `node: command not found`：运行环境没有 Node。
 - `Error: questions file not found`：检查问题文件路径。
 - `Failed to read questions`：检查 JSON 语法和 [references/round-schema.md](references/round-schema.md) 中的字段契约。
-- 没有 `LISTENING`：读取任务完整输出；检查进程是否启动失败或端口是否被占用。
+- 没有 `LISTENING`：读取任务完整输出；检查进程是否启动失败、19876 及以上端口是否均不可用，或绑定是否被系统拒绝。
 - HTTP 409：本轮已经有提交，读取已有答案，不要重复启动同一任务。
 - HTTP 500 或没有答案文件：检查 `--answers` 路径的父目录和写权限。
 - 提交后页面没有自动关闭：浏览器只允许脚本关闭「由脚本打开」的标签页，从地址栏或外链直接打开的页面无法自动关闭。页面会先静默尝试关闭，失败后显示对应平台的手动关闭指引（桌面 ⌘W/Ctrl+W、手机划掉页面），这是预期行为，不要尝试绕过浏览器限制。

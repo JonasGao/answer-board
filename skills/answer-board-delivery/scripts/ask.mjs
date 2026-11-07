@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Answer Board 启动包装脚本（纯 Node 实现，无 bash 依赖）
 // 用法: node ask.mjs --questions <path> [--answers <path>]
-// - 自动挑选空闲端口
+// - 从默认端口 19876 开始递增挑选空闲端口
 // - 启动 board.mjs（前台，继承 stdio）
 // - 等待用户提交（服务自动退出）
 // - 打印答案文件路径和内容
@@ -41,7 +41,7 @@ for (let i = 0; i < args.length; i++) {
   } else if (arg === '-h' || arg === '--help') {
     console.log(`Usage: ${process.argv[1]} --questions <path> [--answers <path>]`);
     console.log('');
-    console.log('启动 answer-board 一次性问答服务。自动挑选空闲端口，启动 board.mjs，');
+    console.log('启动 answer-board 一次性问答服务。从 19876 开始递增挑选空闲端口，');
     console.log('等待用户提交后打印答案。');
     process.exit(0);
   } else {
@@ -57,20 +57,33 @@ if (!answers) {
     : questions + '.answers.json';
 }
 
-// Find a free port using Node's net module（先探测再启动，与 bash 版行为一致）
-let freePort;
-try {
-  freePort = await new Promise((resolve, reject) => {
+// 从固定默认端口开始递增，保持各轮 origin 稳定，让页面显示偏好可以跨轮保留。
+const DEFAULT_PORT = 19876;
+function isPortAvailable(port) {
+  return new Promise((resolve, reject) => {
     const probe = net.createServer();
-    probe.once('error', reject);
-    probe.listen(0, '0.0.0.0', () => {
-      const { port } = probe.address();
-      probe.close(() => resolve(port));
+    probe.once('error', (err) => {
+      if (err.code === 'EADDRINUSE') resolve(false);
+      else reject(err);
+    });
+    probe.listen(port, '0.0.0.0', () => {
+      probe.close(() => resolve(true));
     });
   });
+}
+
+let freePort;
+try {
+  for (let candidate = DEFAULT_PORT; candidate <= 65535; candidate++) {
+    if (await isPortAvailable(candidate)) {
+      freePort = candidate;
+      break;
+    }
+  }
 } catch {
   fail('Error: failed to find a free port', 1);
 }
+if (!freePort) fail(`Error: no free port available from ${DEFAULT_PORT}`, 1);
 console.error(`Using port: ${freePort}`);
 
 // Run the board server (foreground, inheriting stdio)

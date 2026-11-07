@@ -49,7 +49,7 @@
 
 - 必填：`round`、`title`、`questions`。
 - 可选：`subtitle`、`facts`、`defaults`、`width`。
-- `width` 是页面文档初始宽度的像素值（默认 820）。表格较多的轮次可调宽；超出窗口宽度时由页面自动夹到窗口宽度。用户在页面顶部仍可拖动调节，调节结果在同一轮刷新后保留。
+- `width` 是页面文档初始宽度的像素值（默认 820）。表格较多的轮次可调宽；超出窗口宽度时由页面自动夹到窗口宽度。用户在页面顶部仍可拖动调节；同一 origin 下已保存的宽度偏好优先，并会跨轮、跨项目保留。
 - `facts` 和 `defaults` 是纯文本数组，只用于页面背景信息。
 - `questions` 中每个 `id` 必须唯一；同一题的 `options[].key` 必须唯一。
 - `questions` 至少包含一题。
@@ -59,9 +59,9 @@
 - `choice`：单选；`type` 可省略，省略时默认为 `choice`。
 - `multi`：多选；使用 checkbox，不设置机器强制的最少或最多选择数。
 - `text`：开放填写；使用 textarea，不带题目级 `note` 字段。
-- `choice` 和 `multi` 的补充说明是多行文本框：默认一行高，输入时自动换行并随内容增高或缩回；`text` 不带该控件。
+- `choice` 和 `multi` 的补充说明是多行文本框：默认一行高，输入时自动换行并随内容增高或缩回；`text` 不带该控件。两种选择题都提供「以上都不合适」按钮，清空该题选项并聚焦说明框。
 - `choice` 和 `multi` 必须有至少一个 option；`text` 不需要 options。
-- 所有题默认必答；`optional: true` 允许留空提交。
+- 所有题默认必答：必答 `text` 的正文不能为空；必答 `choice` / `multi` 要求选项或补充说明至少一个非空，因此支持仅以说明作为完整回答。`optional: true` 允许任何题型完全留空提交。
 - `choice` 最多一个 `recommended: true`；`multi` 可以有多个；`text` 的 `recommended` 必须是预填字符串。
 - 表单字段使用独立的 `__answer_board_q_<id>`、`__answer_board_note_<id>` 和 `__answer_board_global` 命名空间，不会改变答案中的原始题目 ID。
 - `title`、`options[].text`、`options[].desc`、`facts` 和 `defaults` 按纯文本填写；只有 `body` 按 Markdown 渲染。
@@ -83,7 +83,8 @@
 ```
 
 - `text` 题的正文就是回答本身，不生成题目级 `note`；补充内容写入 `global`。
-- optional 题留空时仍保留答案键：choice 为 `{ "choice": "", "note": "" }`，multi 为 `{ "choices": [], "note": "" }`，text 为 `{ "text": "" }`。
+- 仅以说明作答时仍保留答案键：choice 为 `{ "choice": "", "note": "完整回答" }`，multi 为 `{ "choices": [], "note": "完整回答" }`。
+- optional 题完全留空时也保留答案键：choice 为 `{ "choice": "", "note": "" }`，multi 为 `{ "choices": [], "note": "" }`，text 为 `{ "text": "" }`。
 - 服务只接受第一份成功提交；答案来源是可信网络中第一个向 `/submit` 发起成功请求的客户端。
 
 ## Markdown 范围
