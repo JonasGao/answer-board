@@ -243,8 +243,12 @@ function renderPage() {
         type === 'text' && q.recommended
           ? '<div class="rec prefill">已预填推荐答案，可直接提交或修改</div>'
           : '';
+      const previousTarget = questionIndex > 0 ? quiz.questions[questionIndex - 1].id : '';
       const nextTarget = questionIndex + 1 < quiz.questions.length ? quiz.questions[questionIndex + 1].id : 'global';
       const nextLabel = questionIndex + 1 < quiz.questions.length ? '滚动到下一题' : '填写总备注';
+      const previousLink = previousTarget
+        ? `<a class="prev-step" href="#${esc(encodeURIComponent(previousTarget))}"><span aria-hidden="true">↑</span> 返回上一题</a>`
+        : '';
       return `
       <section class="q" id="${esc(q.id)}" data-step-panel tabindex="-1" aria-labelledby="question-${questionIndex}-title">
         <h3 id="question-${questionIndex}-title">${esc(q.id)} — ${esc(q.title)}${badges}</h3>
@@ -252,7 +256,10 @@ function renderPage() {
         ${prefill}
         ${control}
         ${note}
-        <a class="next-step" href="#${esc(encodeURIComponent(nextTarget))}">${nextLabel} <span aria-hidden="true">↓</span></a>
+        <nav class="step-nav" aria-label="${esc(q.id)} 题目导航">
+          ${previousLink}
+          <a class="next-step" href="#${esc(encodeURIComponent(nextTarget))}">${nextLabel} <span aria-hidden="true">↓</span></a>
+        </nav>
       </section>`;
     })
     .join('\n');
@@ -359,8 +366,9 @@ function renderPage() {
           min-height: 0; resize: none; overflow: hidden; white-space: pre-wrap; overflow-wrap: break-word; }
   textarea { width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--input-border); border-radius: 10px; font-size: 1rem; font-family: inherit;
              background: var(--card-bg); color: var(--text); }
-  .next-step { align-self: flex-end; margin-top: 18px; color: var(--muted); font-size: 0.8125rem; text-decoration: none; }
-  .next-step:hover { color: var(--accent-text); }
+  .step-nav { display: flex; align-items: center; justify-content: flex-end; gap: 24px; margin-top: 18px; }
+  .step-nav a { color: var(--muted); font-size: 0.8125rem; text-decoration: none; }
+  .step-nav a:hover { color: var(--accent-text); }
   .global-panel { border-bottom: 0; }
   .submitbar { margin-top: 24px; text-align: center; }
   button { background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 12px 48px;
@@ -463,7 +471,7 @@ function renderPage() {
 <div class="wrap">
   <aside class="reference">
     <h1>${esc(quiz.title)}</h1>
-    <div class="sub">${esc(quiz.subtitle || '')} 推荐项已预选；滚动切换问题，最后填写总备注并提交。</div>
+    <div class="sub">${esc(quiz.subtitle || '')} 推荐项已预选；滚动或用 ↑ / ↓ 切换问题，最后填写总备注并提交。</div>
     ${facts ? `<section class="ref-block"><h2>背景事实</h2><ul>${facts}</ul></section>` : ''}
     ${defaults ? `<section class="ref-block"><h2>已按项目惯例默认</h2><ul>${defaults}</ul></section>` : ''}
     <nav class="question-index" aria-label="问题索引">${questionLinks}</nav>
@@ -480,6 +488,9 @@ function renderPage() {
         <h3 id="global-title">总备注</h3>
         <div class="q-body">任何想说的：推翻某条默认、补充约束、骂推荐答案……都写这里。</div>
         <textarea name="${GLOBAL_FIELD}" placeholder="（可选）"></textarea>
+        <nav class="step-nav" aria-label="总备注导航">
+          <a class="prev-step" href="#${esc(encodeURIComponent(quiz.questions[quiz.questions.length - 1].id))}"><span aria-hidden="true">↑</span> 返回上一题</a>
+        </nav>
         <div class="submitbar">
           <button type="submit">提交回答</button>
           <div class="hint">提交后本轮结束，可以关闭页面。</div>
@@ -557,9 +568,12 @@ function scheduleStepSync() {
   stepSyncQueued = true;
   requestAnimationFrame(() => { stepSyncQueued = false; syncStepProgress(); });
 }
+function stepReadingThreshold() {
+  return Math.max(80, window.innerHeight * .45);
+}
 // 进度表示当前位置而非已答数量；滚动到下一屏上半部时切换当前步骤。
 function syncStepProgress() {
-  const threshold = Math.max(80, window.innerHeight * .45);
+  const threshold = stepReadingThreshold();
   let nextStep = 0;
   stepPanels.forEach((panel, index) => {
     if (panel.getBoundingClientRect().top <= threshold) nextStep = index;
@@ -580,6 +594,31 @@ function syncStepProgress() {
   });
 }
 window.addEventListener('scroll', scheduleStepSync, { passive: true });
+function goToStep(index) {
+  const target = stepPanels[index];
+  if (!target) return;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+  const url = new URL(window.location.href);
+  url.hash = target.id;
+  history.replaceState(null, '', url);
+  target.focus({ preventScroll: true });
+  scheduleStepSync();
+}
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.repeat) return;
+  const target = event.target;
+  if (target instanceof Element && (target.matches('input, textarea, select') || target.isContentEditable)) return;
+  event.preventDefault();
+  const base = currentStep >= 0 ? currentStep : 0;
+  const firstPanelBelowReadingLine = base === 0 && stepPanels[0].getBoundingClientRect().top > stepReadingThreshold();
+  const delta = event.key === 'ArrowUp' ? -1 : 1;
+  const nextIndex = event.key === 'ArrowDown' && firstPanelBelowReadingLine
+    ? 0
+    : Math.min(Math.max(base + delta, 0), stepPanels.length - 1);
+  if (nextIndex !== base || firstPanelBelowReadingLine) goToStep(nextIndex);
+});
 // 只有真的溢出的表格才变成可聚焦滚动区域，键盘用户也能用方向键横向滚动。
 function syncTableScroll() {
   document.querySelectorAll('.table-scroll').forEach((box) => {
