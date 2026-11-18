@@ -1,15 +1,14 @@
 #!/usr/bin/env node
-// Answer Board 一次性问答服务
-// 用法: node board.mjs <questions.json> <answers.json> <port>
-// GET  /        -> 渲染问题表单（推荐项预选，跟随系统主题）
-// POST /submit  -> 答案写入文件 + stdout，200ms 后进程退出
+// Answer Board 问答服务，由 ask.mjs 启动。
 import http from 'node:http';
 import os from 'node:os';
-import { readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 
-const [, , questionsPath, answersPath, portArg] = process.argv;
+const [, , questionsPath, answersPath, portArg, session] = process.argv;
 if (!questionsPath || !answersPath || !portArg) {
-  console.error('Usage: node board.mjs <questions.json> <answers.json> <port>');
+  console.error('Usage: node board.mjs <questions.json> <answers.json> <port> [session-directory]');
   process.exit(1);
 }
 const port = Number(portArg);
@@ -19,10 +18,16 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
 }
 
 let quiz;
+let controlToken;
+const sessionId = session ? randomUUID() : null;
 try {
   quiz = JSON.parse(readFileSync(questionsPath, 'utf8'));
+  if (session) {
+    ({ token: controlToken } = JSON.parse(readFileSync(path.join(session, 'control.json'), 'utf8')));
+    if (!controlToken) throw new Error('Missing session control token');
+  }
 } catch (err) {
-  console.error(`Failed to read questions: ${err.message}`);
+  console.error(`Failed to load board: ${err.message}`);
   process.exit(1);
 }
 
@@ -123,14 +128,15 @@ const THEME_CSS = `
 // 成功页三件套（样式/卡片/关闭脚本）由服务端响应页与客户端就地重建共用，只维护这一份
 const SUCCESS_CSS = `
   ${THEME_CSS}
-  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 16px; }
   .success-card {
     background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px;
-    padding: 48px 56px; text-align: center; max-width: 420px;
+    padding: 48px clamp(20px, 7vw, 56px); text-align: center; max-width: 420px;
     box-shadow: 0 8px 32px rgba(0,0,0,.08);
     animation: fadeIn .4s ease-out;
   }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce) { .success-card { animation: none; } }
   .check-circle {
     width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 20px;
     background: var(--success-bg); border: 2px solid var(--success-border);
@@ -145,18 +151,20 @@ const SUCCESS_CSS = `
   .close-hint { margin: 10px 0 0; color: var(--muted); font-size: 0.8125rem; min-height: 18px; }
 `;
 
-const SUCCESS_CARD_HTML = `
-<div class="success-card">
-  <div class="check-circle">
+const SUCCESS_ICON = `
+  <div class="check-circle" aria-hidden="true">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
       <polyline points="20 6 9 17 4 12"></polyline>
     </svg>
-  </div>
+  </div>`;
+const SUCCESS_CARD_HTML = `
+<main class="success-card">
+  ${SUCCESS_ICON}
   <h1>已收到回答</h1>
   <p class="sub">本轮提问结束。</p>
   <button class="close-btn" type="button">关闭标签页</button>
   <p class="close-hint" id="closeHint"></p>
-</div>`;
+</main>`;
 
 // 浏览器只允许脚本关闭「由脚本打开」的标签页；从地址栏或外链直接打开的页面无法自动关闭。
 // 所以先静默尝试 window.close()（能关的场合页面直接消失，用户零点击），关不掉再按平台给出
@@ -182,32 +190,73 @@ const CLOSE_JS = `
 })();
 `;
 
-function renderSuccessPage() {
+function renderStatusPage(card = SUCCESS_CARD_HTML, script = CLOSE_JS, title = '已提交') {
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>✓ 已提交</title>
+<title>${title}</title>
 <style>${SUCCESS_CSS}</style>
 </head>
 <body>
-${SUCCESS_CARD_HTML}
-<script>${CLOSE_JS}</script>
+${card}
+${script ? `<script>${script}</script>` : ''}
 </body>
 </html>`;
+}
+
+function endedCard(saved) {
+  return `<main class="success-card">
+  ${saved ? SUCCESS_ICON : ''}
+  <h1>问答已结束</h1>
+  <p class="sub">${saved ? '本轮答案已保存，可以关闭此页面。' : '可以关闭此页面。'}</p>
+</main>`;
+}
+
+function renderContinuousStatus() {
+  if (finished) return renderStatusPage(endedCard(submitted), '', '问答已结束');
+  return renderStatusPage(`<main class="success-card">
+  ${SUCCESS_ICON}
+  <h1>答案已保存</h1>
+  <p class="sub" id="next-round-status" role="status">正在等待下一轮。问题就绪后，此页面会自动切换。</p>
+</main>`, `
+const message = document.getElementById('next-round-status');
+async function checkForNextRound() {
+  try {
+    const response = await fetch('/status', { signal: AbortSignal.timeout?.(4000) });
+    if (!response.ok) throw new Error('Status check failed');
+    const status = await response.json();
+    if (status.session !== ${JSON.stringify(sessionId)} || status.state === 'finished') {
+      document.title = '问答已结束';
+      document.body.innerHTML = ${JSON.stringify(endedCard(true))};
+      return;
+    }
+    if (status.round !== ${quiz.round}) {
+      location.replace('/');
+      return;
+    }
+    const waiting = '正在等待下一轮。问题就绪后，此页面会自动切换。';
+    if (message.textContent !== waiting) message.textContent = waiting;
+  } catch {
+    const reconnecting = '与答题板的连接已断开，正在重试。答案已保存。';
+    if (message.textContent !== reconnecting) message.textContent = reconnecting;
+  }
+  setTimeout(checkForNextRound, 1000);
+}
+checkForNextRound();
+`, '等待下一轮');
 }
 
 // round JSON 可给表格密集的轮次一个更宽的初始页面宽度；非有限数字一律回落到标准宽度。
 // 客户端仍以用户在页面上的调节（localStorage）为准，超出窗口的部分由 CSS 的 max-width: 100% 夹住。
 const DEFAULT_PAGE_WIDTH = 1440;
-const requestedWidth = quiz.width;
-const INITIAL_PAGE_WIDTH =
-  typeof requestedWidth === 'number' && Number.isFinite(requestedWidth)
-    ? Math.min(Math.max(Math.round(requestedWidth), 1000), 4000)
-    : DEFAULT_PAGE_WIDTH;
-
-function renderPage() {
+function renderPage(quiz) {
+  const requestedWidth = quiz.width;
+  const INITIAL_PAGE_WIDTH =
+    typeof requestedWidth === 'number' && Number.isFinite(requestedWidth)
+      ? Math.min(Math.max(Math.round(requestedWidth), 1000), 4000)
+      : DEFAULT_PAGE_WIDTH;
   const facts = (quiz.facts || []).map((f) => `<li>${esc(f)}</li>`).join('');
   const defaults = (quiz.defaults || []).map((f) => `<li>${esc(f)}</li>`).join('');
   const questions = quiz.questions
@@ -779,15 +828,26 @@ form.addEventListener('submit', async (e) => {
   if (submitButton) submitButton.disabled = true;
   let res;
   try {
-    res = await fetch('/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const headers = { 'Content-Type': 'application/json' };
+    const session = ${JSON.stringify(sessionId)};
+    if (session) headers['X-Answer-Board-Session'] = session;
+    res = await fetch('/submit', { method: 'POST', headers, body: JSON.stringify(payload) });
   } catch {
     if (submitButton) submitButton.disabled = false;
     alert('提交失败：无法连接服务');
     return;
   }
+  if (${Boolean(session)} && res.ok) {
+    location.replace('/');
+    return;
+  }
   if (!res.ok) {
     if (submitButton) submitButton.disabled = false;
-    alert('提交失败：HTTP ' + res.status);
+    if (${Boolean(session)} && res.status === 409) {
+      alert('本轮当前无法提交。请稍后重试，或刷新查看当前轮。');
+    } else {
+      alert('提交失败：HTTP ' + res.status);
+    }
     return;
   }
   // 就地重建成功页：样式、卡片结构和关闭脚本全部来自服务端的 SUCCESS_* 常量，两处不会漂移
@@ -825,66 +885,156 @@ form.addEventListener('submit', async (e) => {
 
 let submissionInProgress = false;
 let submitted = false;
+let finished = false;
+let questionPage;
+
+function renderSessionRound(candidate) {
+  if (!Number.isSafeInteger(candidate?.round) || candidate.round < 1 ||
+      typeof candidate.title !== 'string' || !candidate.title.trim() ||
+      !Array.isArray(candidate.questions) || candidate.questions.length === 0) {
+    throw new Error('Expected a positive round number, title and non-empty questions array');
+  }
+  return renderPage(candidate);
+}
+
+if (session) {
+  try {
+    questionPage = renderSessionRound(quiz);
+  } catch (err) {
+    console.error(`Invalid first round: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+function status() {
+  return { session: sessionId, round: quiz.round, state: finished ? 'finished' : submitted ? 'waiting' : 'answering' };
+}
+
+function send(res, code, body, type = 'text/plain') {
+  res.writeHead(code, { 'Content-Type': type + '; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.end(body);
+}
+
+function sendStatus(res) {
+  send(res, 200, JSON.stringify(status()), 'application/json');
+}
+
+function readJSON(req, res, onValue, onFailure = () => {}) {
+  let body = '';
+  let bytes = 0;
+  let rejected = false;
+  req.setEncoding('utf8');
+  const reject = () => {
+    if (rejected) return;
+    rejected = true;
+    onFailure();
+  };
+  req.on('aborted', reject);
+  req.on('error', reject);
+  req.on('data', (chunk) => {
+    if (rejected) return;
+    bytes += Buffer.byteLength(chunk);
+    if (bytes > 1e6) {
+      reject();
+      send(res, 413, 'payload too large');
+      return;
+    }
+    body += chunk;
+  });
+  req.on('end', () => {
+    if (rejected) return;
+    let value;
+    try {
+      value = JSON.parse(body);
+    } catch {
+      onFailure();
+      send(res, 400, 'bad json');
+      return;
+    }
+    onValue(value);
+  });
+}
+
+function handleControl(req, res) {
+  if (req.socket.remoteAddress !== '127.0.0.1' ||
+      req.headers.authorization !== `Bearer ${controlToken}`) {
+    return send(res, 403, 'local session control only');
+  }
+  if (req.method === 'GET' && req.url === '/_control') return sendStatus(res);
+  if (req.method === 'POST' && req.url === '/_control/finish') {
+    if (!finished) {
+      finished = true;
+      // Give the waiting page time to receive the terminal status.
+      setTimeout(() => process.exit(0), 3000);
+    }
+    return sendStatus(res);
+  }
+  if (req.method === 'POST' && req.url === '/_control/next') {
+    return readJSON(req, res, (candidate) => {
+      if (finished || !submitted || candidate?.round !== quiz.round + 1) {
+        return send(res, 409, 'expected the next round after the current round is submitted');
+      }
+      try {
+        questionPage = renderSessionRound(candidate);
+      } catch (err) {
+        return send(res, 400, `invalid questions: ${err.message}`);
+      }
+      quiz = candidate;
+      submitted = false;
+      console.log(`ROUND_READY round=${quiz.round}`);
+      sendStatus(res);
+    });
+  }
+  return send(res, 404, 'not found');
+}
+
 const server = http.createServer((req, res) => {
+  if (session && req.url.startsWith('/_control')) return handleControl(req, res);
+  if (session && req.method === 'GET' && req.url === '/status') return sendStatus(res);
   if (req.method === 'GET' && req.url === '/vendor/markdown-it.min.js') {
     res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
     res.end(readFileSync(new URL('./vendor/markdown-it.min.js', import.meta.url)));
     return;
   }
   if (req.method === 'GET' && (req.url === '/' || req.url.startsWith('/?'))) {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(renderPage());
-    return;
+    const html = session ? (submitted || finished ? renderContinuousStatus() : questionPage) : renderPage(quiz);
+    return send(res, 200, html, 'text/html');
   }
   if (req.method === 'POST' && req.url === '/submit') {
-    if (submissionInProgress || submitted) {
-      res.writeHead(409, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('submission already received');
-      return;
+    if (session && req.headers['x-answer-board-session'] !== sessionId) {
+      return send(res, 409, 'stale board');
+    }
+    if (submissionInProgress || submitted || finished) {
+      return send(res, 409, 'round is not accepting answers');
     }
     submissionInProgress = true;
-    let body = '';
-    let rejected = false;
-    req.on('aborted', () => {
-      if (!submitted) submissionInProgress = false;
-    });
-    req.on('data', (c) => {
-      if (rejected) return;
-      body += c;
-      if (body.length > 1e6) {
-        rejected = true;
-        submissionInProgress = false;
-        res.writeHead(413, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('payload too large');
-        req.destroy();
+    return readJSON(req, res, (answers) => {
+      submissionInProgress = false;
+      if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+        return send(res, 400, 'expected an answer object');
       }
-    });
-    req.on('end', () => {
-      if (rejected) return;
-      let answers;
-      try {
-        answers = JSON.parse(body);
-      } catch {
-        submissionInProgress = false;
-        res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('bad json');
-        return;
+      if (session && (finished || answers.round !== quiz.round)) {
+        return send(res, 409, 'stale round');
       }
       try {
-        writeFileSync(answersPath, JSON.stringify(answers, null, 2) + '\n');
+        const json = JSON.stringify(answers, null, 2) + '\n';
+        if (session) {
+          const file = path.join(session, `round-${quiz.round}.answers.json`);
+          writeFileSync(file + '.tmp', json, { mode: 0o600 });
+          renameSync(file + '.tmp', file);
+        } else {
+          writeFileSync(answersPath, json);
+        }
       } catch {
-        submissionInProgress = false;
-        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('failed to write answers');
-        return;
+        return send(res, 500, 'failed to write answers');
       }
       submitted = true;
       console.log('ANSWERS_RECEIVED round=' + answers.round);
+      if (session) return send(res, 200, renderContinuousStatus(), 'text/html');
       console.log(JSON.stringify(answers, null, 2));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(renderSuccessPage(), () => setTimeout(() => process.exit(0), 200));
-    });
-    return;
+      res.end(renderStatusPage(), () => setTimeout(() => process.exit(0), 200));
+    }, () => { submissionInProgress = false; });
   }
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('not found');
@@ -897,6 +1047,7 @@ server.listen(port, '0.0.0.0', () => {
     .map((i) => i.address);
   console.log(`LISTENING http://127.0.0.1:${port}/ round=${quiz.round}`);
   lan.forEach((ip) => console.log(`LISTENING http://${ip}:${port}/`));
+  if (session) console.log(`SESSION_DIR ${session}`);
 });
 
 server.on('error', (err) => {

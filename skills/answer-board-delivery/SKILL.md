@@ -1,12 +1,12 @@
 ---
 name: answer-board-delivery
-description: 将一轮 grilling 或结构化问题投递成一次性、局域网可访问的 answer-board 网页表单；支持单选、多选、开放文本和推荐预填，提交后返回结构化 JSON 并退出。用户要求网页集中作答时使用；不要用于持久服务、静态 HTML 生成或仅询问 schema。
+description: 将 grilling 或结构化问题投递成局域网可访问的 answer-board 网页表单，支持单选、多选和开放文本。用户要求网页集中作答时使用。支持单轮和持续投递，持续模式在同一页面根据答案进入后续轮次。
 argument-hint: "[持续投递=on|off] [访问地址]"
 ---
 
 # Answer Board Delivery
 
-把一轮问题转换成 round JSON，启动本技能自带的一次性 Node 服务，让用户在网页集中作答。提交后服务写出答案 JSON 并退出；下一轮必须新建进程。
+把问题转换成 round JSON，在网页集中作答。每轮提交产生独立的答案 JSON。
 
 ## 何时使用
 
@@ -14,13 +14,11 @@ argument-hint: "[持续投递=on|off] [访问地址]"
 - 用户明确提到 answer-board
 - 当前 grilling 问题较多，网页集中作答比终端逐题回答更合适
 
-不要把本技能用于持久化服务、多轮自动编排、静态 HTML 导出或只想了解 schema 的请求。
-
 ## 斜杠命令参数
 
 `/answer-board-delivery` 后可带两个可选参数（经 `$ARGUMENTS` 传入，按出现顺序解释，均可省略）：
 
-1. 持续投递：`on` 表示本轮结束后继续用本技能投递后续轮次（每轮仍是独立进程，遵守「一轮一进程」约束）；`off` 或省略为单轮投递。
+1. 持续投递。显式传入 `on` 时，一个服务承接后续轮次，直到问答完成或用户取消。传入 `off` 或省略时，提交一轮后服务退出。
 2. 访问地址：指定要告知用户的地址，如 `192.168.110.17`。必须匹配启动输出中某条 `LISTENING` 的地址，不匹配时回退到自动选择并说明。省略则按「告知地址」一节的规则自动挑选。
 
 参数只影响投递方式，不改变 round JSON 的内容。
@@ -28,12 +26,11 @@ argument-hint: "[持续投递=on|off] [访问地址]"
 ## 约束
 
 - 标准投递使用 `scripts/ask.mjs`，不要为当前轮临时重写服务端代码。
-- 一轮只启动一个 ask 进程；提交后 ask、board 和等待任务都应退出。
 - 问题输入必须是 JSON；完整字段契约见 [references/round-schema.md](references/round-schema.md)。
 - choice、multi 和 text 的题型必须使用契约中的明确值。**生成 round JSON 时必须显式设置题型**：单选题 `"type": "choice"`（或省略，默认为 choice）；多选题 `"type": "multi"`（必须显式写，否则默认单选，页面渲染成 radio 而非 checkbox）；开放题 `"type": "text"`。判断标准：题目允许多个选项同时被选中 → multi；只能选一个 → choice。推荐项用于预选或预填，不代表用户已经同意。
 - 问题正文引用源文档的编号条目（「新增 ①」「第 3 条」等）时，被引条目的原文必须同时出现在页面上：单题引用写该题 `refs`（渲染在题干下方），跨题共享的写顶层 `facts`，一句话能说清的可以直接内联进 body。悬空编号会让作答者无法理解题干——曾因此多耗一整轮投递。
 - choice 和 multi 可通过「以上都不合适」清空选项，仅填写补充说明作答；必答题要求选项或说明至少一个，`optional: true` 仍允许完全留空。
-- 服务监听 `0.0.0.0` 且没有认证。只在用户和服务处于同一可信网络时使用，不要把密码、密钥、敏感个人信息或未公开商业信息放进 round JSON。
+- 答题页面在可信局域网内开放，无需认证。持续模式的投递和结束命令只在服务所在机器执行。对用户只发送答题地址，保留 `SESSION_DIR` 供本机命令使用。避免把敏感信息放进 round JSON。
 
 ## 投递流程
 
@@ -41,33 +38,43 @@ argument-hint: "[持续投递=on|off] [访问地址]"
 
 将当前轮问题写入临时 JSON，例如 `/tmp/<project>-round<N>.json`。需要完整 schema 或答案字段时，先读 [references/round-schema.md](references/round-schema.md)。
 
-### 2. 启动服务
+### 2. 启动并发送答题地址
 
 ```bash
 node <skill_dir>/scripts/ask.mjs --questions /tmp/round-N.json
 ```
 
-使用当前执行环境支持的后台任务方式运行，并保留任务或进程 ID。若执行器提供后台选项，启用它；不要让前台等待任务阻塞后续对话。启动输出包含：
+持续投递 `on` 时使用 Node.js 18 或更新版本，在首轮启动命令加 `--continuous`。使用执行环境支持的后台任务方式运行，保留任务 ID。持续模式还需从启动输出记录 `SESSION_DIR` 的路径。
 
-- `Using port: NNNNN`：包装进程从 19876 开始递增选定的端口
-- `LISTENING http://...`：可访问地址
-- 提交后 `---ANSWERS_FILE---` 与 `---ANSWERS---`：答案位置和内容
+从任务输出读取 `LISTENING` 行并发送答题地址。用户就在当前机器时使用 `127.0.0.1` 地址。远程用户选择与其处于同一可信网络且确实可达的私有网卡地址。用户打开网页后在那里作答，无需在对话中重复问题。
 
-### 3. 告知地址
+### 3. 等待并读取答案
 
-从任务输出读取 `LISTENING` 行。用户就在当前机器时使用 `127.0.0.1` 地址；远程用户选择与其处于同一可信网络、且确实可达的私有网卡地址。不要把 VPN、容器或不确定的网卡地址当成默认地址，也不要通过不可信网络暴露服务。
+**单轮**。等待启动任务完成，从 `---ANSWERS---` 或 `---ANSWERS_FILE---` 读取答案。用户提交后会看到成功页，服务自行退出。取消或修改尚未提交的问卷时，先停止服务任务，确认退出后再开始新的投递。
 
-不要在对话中重复完整问题块，除非用户明确要求查看；网页地址和必要的访问说明仍要发送。
+**持续投递**。用中间进度消息发送地址，让对话回合保持运行。持续服务在每轮提交后保持监听，另起一个等待任务读取该轮答案。把下列命令里的路径替换成 `SESSION_DIR`，把 `N` 替换成问题 JSON 的 `round`：
 
-### 4. 等待提交
+```bash
+node <skill_dir>/scripts/ask.mjs --session "<SESSION_DIR>" --wait N
+```
 
-用户提交后，页面显示成功状态，服务自动退出，ask 进程随后输出答案并退出。等待后台任务完成，不要循环轮询。服务只接受第一份成功提交；重复提交会返回 HTTP 409。
+通过执行环境的等待工具等待读取任务退出。工具一次等待到期但任务仍在运行时，继续等待同一个任务。等待任务返回后，解析 `---ANSWERS---` 或读取 `---ANSWERS_FILE---`，校验答案属于当前轮，再接回 grilling 状态。
 
-若要取消或修改本轮，先停止承载 ask 的后台任务并确认 board 已退出，再重写 round JSON、启动新任务并发送新地址。不要同时保留多个等待提交的 board。
+### 4. 持续模式下投递下一轮或结束
 
-### 5. 读取答案
+根据答案生成下一轮 JSON，将 `round` 加 1，并提交给同一个服务：
 
-任务完成后读取 `---ANSWERS---` 块，或读取 `---ANSWERS_FILE---` 指向的 JSON 文件。确认答案文件存在且 JSON 可解析，再将答案灌回当前 grilling 状态。
+```bash
+node <skill_dir>/scripts/ask.mjs --session "<SESSION_DIR>" --questions /tmp/round-next.json
+```
+
+看到 `ROUND_READY` 后，浏览器会在原页自动显示新题。回到第 3 步等待新一轮答案。任务完成或用户取消时，运行下面的命令并确认原服务任务退出：
+
+```bash
+node <skill_dir>/scripts/ask.mjs --session "<SESSION_DIR>" --finish
+```
+
+每轮的答案保存在 `SESSION_DIR/round-N.answers.json`，服务停止后仍可读取。若执行环境不支持在当前回合继续等待，及时告知用户续轮需要恢复对话，并保留地址、`SESSION_DIR` 和当前轮号。恢复时从第 3 步读取该轮，优先复用存活的服务。服务意外停止时，保留已提交答案，用当前待答轮启动新服务并发送新地址。
 
 ## Markdown 与回退
 
@@ -89,8 +96,8 @@ node <skill_dir>/scripts/ask.mjs --questions /tmp/round-N.json
 
 - `node: command not found`：运行环境没有 Node。
 - `Error: questions file not found`：检查问题文件路径。
-- `Failed to read questions`：检查 JSON 语法和 [references/round-schema.md](references/round-schema.md) 中的字段契约。
+- `Failed to load board` 或 `Invalid first round`：检查 JSON 语法和 [references/round-schema.md](references/round-schema.md) 中的字段契约。
 - 没有 `LISTENING`：读取任务完整输出；检查进程是否启动失败、19876 及以上端口是否均不可用，或绑定是否被系统拒绝。
-- HTTP 409：本轮已经有提交，读取已有答案，不要重复启动同一任务。
+- 推送下一轮返回 HTTP 409。确认前一轮已提交、新文件的轮号恰好加 1。如果推送已经成功，直接对新一轮使用 `--wait`。
 - HTTP 500 或没有答案文件：检查 `--answers` 路径的父目录和写权限。
-- 提交后页面没有自动关闭：浏览器只允许脚本关闭「由脚本打开」的标签页，从地址栏或外链直接打开的页面无法自动关闭。页面会先静默尝试关闭，失败后显示对应平台的手动关闭指引（桌面 ⌘W/Ctrl+W、手机划掉页面），这是预期行为，不要尝试绕过浏览器限制。
+- 单轮的成功页无法自动关闭时，按页面提示手动关闭标签页。持续模式提交后会保留页面，等待下一轮。
