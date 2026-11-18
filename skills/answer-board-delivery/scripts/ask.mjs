@@ -4,7 +4,6 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -130,46 +129,19 @@ if (!answers) {
     : questions + '.answers.json';
 }
 
-// 从固定默认端口开始递增，保持各轮 origin 稳定，让页面显示偏好可以跨轮保留。
 const DEFAULT_PORT = 19876;
-function isPortAvailable(port) {
-  return new Promise((resolve, reject) => {
-    const probe = net.createServer();
-    probe.once('error', (err) => {
-      if (err.code === 'EADDRINUSE') resolve(false);
-      else reject(err);
-    });
-    probe.listen(port, '0.0.0.0', () => {
-      probe.close(() => resolve(true));
-    });
-  });
-}
-
-let freePort;
-try {
-  for (let candidate = DEFAULT_PORT; candidate <= 65535; candidate++) {
-    if (await isPortAvailable(candidate)) {
-      freePort = candidate;
-      break;
-    }
-  }
-} catch {
-  fail('Error: failed to find a free port', 1);
-}
-if (!freePort) fail(`Error: no free port available from ${DEFAULT_PORT}`, 1);
-console.error(`Using port: ${freePort}`);
 
 if (continuous) {
   try {
     session = mkdtempSync(path.join(os.tmpdir(), 'answer-board-'));
-    writeFileSync(path.join(session, 'control.json'), JSON.stringify({ port: freePort, token: randomUUID() }), { mode: 0o600 });
+    writeFileSync(path.join(session, 'control.json'), JSON.stringify({ token: randomUUID() }), { mode: 0o600 });
   } catch (err) {
     fail(`Error: could not create session: ${err.message}`, 1);
   }
 }
 
 // Run the board server (foreground, inheriting stdio)
-const child = spawn(process.execPath, [BOARD_MJS, questions, answers, String(freePort), ...(session ? [session] : [])], {
+const child = spawn(process.execPath, [BOARD_MJS, questions, answers, String(DEFAULT_PORT), session, '--find-port'], {
   stdio: 'inherit',
 });
 child.on('error', (err) => fail(`Error: failed to start board.mjs: ${err.message}`, 1));

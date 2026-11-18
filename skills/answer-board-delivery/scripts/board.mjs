@@ -5,13 +5,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { getDisplayPreferences, isDisplayPreference, isScreenResolution, saveDisplayPreference } from './display-preferences.mjs';
 
-const [, , questionsPath, answersPath, portArg, session] = process.argv;
+const [, , questionsPath, answersPath, portArg, session, listenMode] = process.argv;
 if (!questionsPath || !answersPath || !portArg) {
   console.error('Usage: node board.mjs <questions.json> <answers.json> <port> [session-directory]');
   process.exit(1);
 }
-const port = Number(portArg);
+let port = Number(portArg);
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
   console.error(`Invalid port: ${portArg}`);
   process.exit(1);
@@ -249,7 +250,7 @@ checkForNextRound();
 }
 
 // round JSON 可给表格密集的轮次一个更宽的初始页面宽度；非有限数字一律回落到标准宽度。
-// 客户端仍以用户在页面上的调节（localStorage）为准，超出窗口的部分由 CSS 的 max-width: 100% 夹住。
+// 客户端优先应用当前屏幕的显示偏好。CSS 将实际页面宽度限制在窗口内。
 const DEFAULT_PAGE_WIDTH = 1440;
 function renderPage(quiz) {
   const requestedWidth = quiz.width;
@@ -359,6 +360,7 @@ function renderPage(quiz) {
     background: var(--card-bg); color: var(--muted); border: 1px solid var(--input-border);
   }
   .toolbar button:hover { background: var(--card-bg); color: var(--accent-text); border-color: var(--accent); }
+  .preference-status { flex-basis: 100%; margin: 0; text-align: center; color: var(--muted); font-size: 0.8125rem; }
   .reference {
     position: sticky; top: 24px; max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px);
     padding-right: 8px; overflow-y: auto; scrollbar-width: thin;
@@ -526,6 +528,7 @@ function renderPage(quiz) {
       <output id="fontSizeValue" for="fontSizeRange">16 px</output>
       <button type="button" id="fontSizeDefault">标准</button>
     </div>
+    <p id="preferenceStatus" class="preference-status" role="status" hidden></p>
   </div>
 </div>
 <div class="wrap">
@@ -563,19 +566,17 @@ function renderPage(quiz) {
         integrity="sha384-ARStLecQmtLYjBgfD3+w+irhiSoLTnFk/ne6c0gRWQKQtC9791ZLMQ9D3OaBISt3"
         crossorigin="anonymous"></script>
 <script>
-// 宽度与基础字号偏好存 localStorage。ask.mjs 从固定默认端口递增选择，
-// 因此同一 origin 下会跨轮、跨项目保留；不同主机或端口仍各自隔离。
 const DEFAULT_PAGE_WIDTH = ${DEFAULT_PAGE_WIDTH};
 const INITIAL_PAGE_WIDTH = ${INITIAL_PAGE_WIDTH};
-const WIDTH_KEY = 'answer-board:pageWidth';
 const DEFAULT_FONT_SIZE = 16;
 const MIN_FONT_SIZE = 14;
 const MAX_FONT_SIZE = 28;
-const FONT_SIZE_KEY = 'answer-board:fontSize';
+const MAX_PAGE_WIDTH = 32768;
 const widthRange = document.getElementById('widthRange');
 const widthValue = document.getElementById('widthValue');
 const fontSizeRange = document.getElementById('fontSizeRange');
 const fontSizeValue = document.getElementById('fontSizeValue');
+const preferenceStatus = document.getElementById('preferenceStatus');
 const wrapEl = document.querySelector('.wrap');
 const stepPanels = [...document.querySelectorAll('[data-step-panel]')];
 const stepLinks = [...document.querySelectorAll('[data-step-link]')];
@@ -586,33 +587,24 @@ const progressCount = document.getElementById('progressCount');
 let overflowSyncQueued = false;
 let stepSyncQueued = false;
 let currentStep = -1;
+let preferredPageWidth = INITIAL_PAGE_WIDTH;
 
-function maxPageWidth() {
-  return Math.max(1800, Math.round(window.innerWidth));
-}
-function setPageWidth(px, save) {
-  const max = maxPageWidth();
-  widthRange.max = String(max);
-  const w = Math.min(Math.max(Math.round(px) || DEFAULT_PAGE_WIDTH, 1000), max);
-  widthRange.value = String(w);
-  document.documentElement.style.setProperty('--page-width', w + 'px');
+function setPageWidth(px) {
+  preferredPageWidth = Math.min(Math.max(Math.round(px) || DEFAULT_PAGE_WIDTH, 1000), MAX_PAGE_WIDTH);
+  widthRange.max = String(Math.min(MAX_PAGE_WIDTH, Math.max(1800, window.innerWidth, preferredPageWidth)));
+  widthRange.value = String(preferredPageWidth);
+  document.documentElement.style.setProperty('--page-width', preferredPageWidth + 'px');
   widthValue.textContent = Math.round(wrapEl.getBoundingClientRect().width) + ' px';
-  if (save) {
-    try { localStorage.setItem(WIDTH_KEY, String(w)); } catch {}
-  }
   scheduleOverflowSync();
   scheduleStepSync();
   // 列宽变了会改变换行数，补充说明框的高度必须跟着重算
   autoGrowNotes();
 }
-function setFontSize(px, save) {
+function setFontSize(px) {
   const size = Math.min(Math.max(Math.round(px) || DEFAULT_FONT_SIZE, MIN_FONT_SIZE), MAX_FONT_SIZE);
   fontSizeRange.value = String(size);
   document.documentElement.style.setProperty('--font-size-base', size + 'px');
   fontSizeValue.textContent = size + ' px';
-  if (save) {
-    try { localStorage.setItem(FONT_SIZE_KEY, String(size)); } catch {}
-  }
   // 字号变化也会影响表格溢出和说明框的换行高度。
   scheduleOverflowSync();
   scheduleStepSync();
@@ -729,28 +721,97 @@ document.querySelectorAll('.clear-choices').forEach((button) => {
   });
 });
 
-fontSizeRange.addEventListener('input', () => setFontSize(Number(fontSizeRange.value), true));
+const preferenceUrl = '/preferences?screen=' + encodeURIComponent(screen.width + 'x' + screen.height);
+const editedPreferences = new Set();
+let preferenceWrites = Promise.resolve();
+
+function showPreferenceStatus(message) {
+  preferenceStatus.textContent = message;
+  preferenceStatus.hidden = !message;
+}
+
+async function writePreference(field, value, migrate = false) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (migrate) headers['If-None-Match'] = '*';
+  const response = await fetch(preferenceUrl, {
+    method: 'PATCH', headers, body: JSON.stringify({ field, value }),
+    keepalive: true, signal: AbortSignal.timeout?.(5000),
+  });
+  if (!response.ok && !(migrate && response.status === 412)) throw new Error('Preference write failed');
+  return (await response.json()).value;
+}
+
+function savePreference(field, value) {
+  editedPreferences.add(field);
+  // Keep successive adjustments in this tab in the same order on disk.
+  preferenceWrites = preferenceWrites.then(async () => {
+    try {
+      await writePreference(field, value);
+      showPreferenceStatus('');
+    } catch {
+      showPreferenceStatus('显示设置未保存，请再调整一次。');
+    }
+  });
+}
+
+function legacyPreference(key, min, max) {
+  try {
+    const value = Number(localStorage.getItem(key));
+    if (Number.isInteger(value) && value >= min && value <= max) return value;
+  } catch {}
+}
+
+async function loadDisplayPreferences() {
+  try {
+    const response = await fetch(preferenceUrl, { signal: AbortSignal.timeout?.(5000) });
+    if (!response.ok) throw new Error('Preference read failed');
+    const saved = await response.json();
+    const fields = [
+      ['width', 'answer-board:pageWidth', 1000, MAX_PAGE_WIDTH, INITIAL_PAGE_WIDTH, setPageWidth],
+      ['fontSize', 'answer-board:fontSize', MIN_FONT_SIZE, MAX_FONT_SIZE, DEFAULT_FONT_SIZE, setFontSize],
+    ];
+    for (const [field, legacyKey, min, max, defaultValue, apply] of fields) {
+      if (editedPreferences.has(field)) continue;
+      let value = saved[field];
+      if (value === undefined) {
+        const legacy = legacyPreference(legacyKey, min, max);
+        if (legacy !== undefined) {
+          value = await writePreference(field, legacy, true);
+          try { localStorage.removeItem(legacyKey); } catch {}
+        }
+      }
+      if (!editedPreferences.has(field)) apply(value ?? defaultValue);
+    }
+  } catch {
+    showPreferenceStatus('无法读取已保存的显示设置。');
+  }
+}
+
+fontSizeRange.addEventListener('input', () => {
+  editedPreferences.add('fontSize');
+  setFontSize(Number(fontSizeRange.value));
+});
+fontSizeRange.addEventListener('change', () => savePreference('fontSize', Number(fontSizeRange.value)));
 document.getElementById('fontSizeDefault').addEventListener('click', () => {
-  try { localStorage.removeItem(FONT_SIZE_KEY); } catch {}
-  setFontSize(DEFAULT_FONT_SIZE, false);
+  setFontSize(DEFAULT_FONT_SIZE);
+  savePreference('fontSize', null);
 });
-widthRange.addEventListener('input', () => setPageWidth(Number(widthRange.value), true));
+widthRange.addEventListener('input', () => {
+  editedPreferences.add('width');
+  setPageWidth(Number(widthRange.value));
+});
+widthRange.addEventListener('change', () => savePreference('width', preferredPageWidth));
 document.getElementById('widthDefault').addEventListener('click', () => {
-  try { localStorage.removeItem(WIDTH_KEY); } catch {}
-  setPageWidth(DEFAULT_PAGE_WIDTH, false);
+  setPageWidth(DEFAULT_PAGE_WIDTH);
+  savePreference('width', null);
 });
-document.getElementById('widthFull').addEventListener('click', () => setPageWidth(window.innerWidth, true));
-window.addEventListener('resize', () => setPageWidth(Number(widthRange.value), false));
-{
-  let stored = null;
-  try { stored = Number(localStorage.getItem(WIDTH_KEY)); } catch {}
-  setPageWidth(Number.isFinite(stored) && stored > 0 ? stored : INITIAL_PAGE_WIDTH, false);
-}
-{
-  let stored = null;
-  try { stored = Number(localStorage.getItem(FONT_SIZE_KEY)); } catch {}
-  setFontSize(Number.isFinite(stored) && stored > 0 ? stored : DEFAULT_FONT_SIZE, false);
-}
+document.getElementById('widthFull').addEventListener('click', () => {
+  setPageWidth(window.innerWidth);
+  savePreference('width', preferredPageWidth);
+});
+window.addEventListener('resize', () => setPageWidth(preferredPageWidth));
+setPageWidth(INITIAL_PAGE_WIDTH);
+loadDisplayPreferences();
 
 // markdown 渐进增强：库就绪前保持服务端基础渲染（换行+代码块），就绪后原地升级
 const MD_BODIES = ${JSON.stringify(Object.fromEntries(quiz.questions.map((q) => [q.id, q.body]))).replace(/</g, '\\u003c')};
@@ -828,6 +889,8 @@ form.addEventListener('submit', async (e) => {
   if (submitButton) submitButton.disabled = true;
   let res;
   try {
+    // In single-round mode the server exits shortly after accepting answers.
+    await preferenceWrites;
     const headers = { 'Content-Type': 'application/json' };
     const session = ${JSON.stringify(sessionId)};
     if (session) headers['X-Answer-Board-Session'] = session;
@@ -988,7 +1051,40 @@ function handleControl(req, res) {
   return send(res, 404, 'not found');
 }
 
+function handlePreferences(req, res) {
+  const screen = new URLSearchParams(req.url.split('?')[1]).get('screen');
+  if (!isScreenResolution(screen)) return send(res, 400, 'invalid screen resolution');
+  const storageError = (err) => {
+    console.error(`Display preferences: ${err.message}`);
+    send(res, 500, 'could not access display preferences');
+  };
+  if (req.method === 'GET') {
+    try {
+      return send(res, 200, JSON.stringify(getDisplayPreferences(screen)), 'application/json');
+    } catch (err) {
+      return storageError(err);
+    }
+  }
+  if (req.method === 'PATCH') {
+    if (req.headers['content-type']?.split(';')[0].trim() !== 'application/json') {
+      return send(res, 415, 'expected application/json');
+    }
+    return readJSON(req, res, (patch) => {
+      const { field, value } = patch ?? {};
+      if (!isDisplayPreference(field, value)) return send(res, 400, 'invalid display preference');
+      try {
+        const result = saveDisplayPreference(screen, field, value, req.headers['if-none-match'] === '*');
+        send(res, result.saved ? 200 : 412, JSON.stringify({ value: result.value }), 'application/json');
+      } catch (err) {
+        storageError(err);
+      }
+    });
+  }
+  return send(res, 405, 'method not allowed');
+}
+
 const server = http.createServer((req, res) => {
+  if (req.url === '/preferences' || req.url.startsWith('/preferences?')) return handlePreferences(req, res);
   if (session && req.url.startsWith('/_control')) return handleControl(req, res);
   if (session && req.method === 'GET' && req.url === '/status') return sendStatus(res);
   if (req.method === 'GET' && req.url === '/vendor/markdown-it.min.js') {
@@ -1040,17 +1136,32 @@ const server = http.createServer((req, res) => {
   res.end('not found');
 });
 
-server.listen(port, '0.0.0.0', () => {
+server.on('listening', () => {
+  if (session) {
+    try {
+      writeFileSync(path.join(session, 'control.json'), JSON.stringify({ port, token: controlToken }));
+    } catch (err) {
+      console.error(`Failed to publish session: ${err.message}`);
+      process.exit(1);
+    }
+  }
   const lan = Object.values(os.networkInterfaces())
     .flat()
     .filter((i) => i && i.family === 'IPv4' && !i.internal)
     .map((i) => i.address);
+  if (listenMode === '--find-port') console.error(`Using port: ${port}`);
   console.log(`LISTENING http://127.0.0.1:${port}/ round=${quiz.round}`);
   lan.forEach((ip) => console.log(`LISTENING http://${ip}:${port}/`));
   if (session) console.log(`SESSION_DIR ${session}`);
 });
 
 server.on('error', (err) => {
+  // Bind the actual serving socket so simultaneous boards cannot claim the same port.
+  if (listenMode === '--find-port' && err.code === 'EADDRINUSE' && port < 65535) {
+    server.listen(++port, '0.0.0.0');
+    return;
+  }
   console.error(`Server error: ${err.message}`);
   process.exit(1);
 });
+server.listen(port, '0.0.0.0');
