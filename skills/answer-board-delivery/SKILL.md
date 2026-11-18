@@ -31,6 +31,7 @@ argument-hint: "[持续投递=on|off] [访问地址]"
 - 一轮只启动一个 ask 进程；提交后 ask、board 和等待任务都应退出。
 - 问题输入必须是 JSON；完整字段契约见 [references/round-schema.md](references/round-schema.md)。
 - choice、multi 和 text 的题型必须使用契约中的明确值。**生成 round JSON 时必须显式设置题型**：单选题 `"type": "choice"`（或省略，默认为 choice）；多选题 `"type": "multi"`（必须显式写，否则默认单选，页面渲染成 radio 而非 checkbox）；开放题 `"type": "text"`。判断标准：题目允许多个选项同时被选中 → multi；只能选一个 → choice。推荐项用于预选或预填，不代表用户已经同意。
+- 问题正文引用源文档的编号条目（「新增 ①」「第 3 条」等）时，被引条目的原文必须同时出现在页面上：单题引用写该题 `refs`（渲染在题干下方），跨题共享的写顶层 `facts`，一句话能说清的可以直接内联进 body。悬空编号会让作答者无法理解题干——曾因此多耗一整轮投递。
 - choice 和 multi 可通过「以上都不合适」清空选项，仅填写补充说明作答；必答题要求选项或说明至少一个，`optional: true` 仍允许完全留空。
 - 服务监听 `0.0.0.0` 且没有认证。只在用户和服务处于同一可信网络时使用，不要把密码、密钥、敏感个人信息或未公开商业信息放进 round JSON。
 

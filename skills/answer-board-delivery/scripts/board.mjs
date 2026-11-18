@@ -243,6 +243,11 @@ function renderPage() {
         type === 'text' && q.recommended
           ? '<div class="rec prefill">已预填推荐答案，可直接提交或修改</div>'
           : '';
+      // 题内引用：body 提到「新增 ①」「第 3 条」等编号引用时，被引条目原文跟题渲染，作答者无需翻源文档。
+      // 与 facts/defaults 同为纯文本数组；形状写错（如字符串）会让 .map 抛错、页面 500，符合「写错看得见」。
+      const refs = (q.refs || [])
+        .map((r) => `<li>${esc(r)}</li>`)
+        .join('');
       const previousTarget = questionIndex > 0 ? quiz.questions[questionIndex - 1].id : '';
       const nextTarget = questionIndex + 1 < quiz.questions.length ? quiz.questions[questionIndex + 1].id : 'global';
       const nextLabel = questionIndex + 1 < quiz.questions.length ? '滚动到下一题' : '填写总备注';
@@ -253,6 +258,7 @@ function renderPage() {
       <section class="q" id="${esc(q.id)}" data-step-panel tabindex="-1" aria-labelledby="question-${questionIndex}-title">
         <h3 id="question-${questionIndex}-title">${esc(q.id)} — ${esc(q.title)}${badges}</h3>
         <div class="q-body">${renderMarkdownBody(q.body)}</div>
+        ${refs ? `<div class="refs"><p class="refs-title">引用原文</p><ul>${refs}</ul></div>` : ''}
         ${prefill}
         ${control}
         ${note}
@@ -346,6 +352,11 @@ function renderPage() {
   .q h3 { margin: 0 0 10px; font-size: 1.25rem; line-height: 1.5; }
   .q-body { margin: 0 0 14px; font-size: 1rem; color: var(--text); white-space: normal; overflow-wrap: break-word; }
   .q-body img { max-width: 100%; height: auto; }
+  /* 题内引用块：视觉上隶属题干（blockquote 同款左边线），但不抢 body 的阅读层级 */
+  .refs { margin: 0 0 14px; padding: 4px 12px; border-left: 3px solid var(--card-border); }
+  .refs-title { margin: 0 0 2px; font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+  .refs ul { margin: 0; padding-left: 18px; }
+  .refs li { margin: 4px 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: break-word; }
   .opts { display: flex; flex-direction: column; gap: 8px; }
   .opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--opt-border); border-radius: 8px;
          padding: 10px 12px; cursor: pointer; font-size: 1rem; background: var(--card-bg); }

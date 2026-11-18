@@ -17,6 +17,7 @@
       "id": "Q1",
       "title": "单选题标题",
       "body": "问题正文，支持 Markdown",
+      "refs": ["新增 ①：body 引用的编号条目原文，纯文本"],
       "options": [
         { "key": "A", "text": "选项文本", "desc": "可选说明", "recommended": true },
         { "key": "B", "text": "另一选项" }
@@ -64,7 +65,9 @@
 - 所有题默认必答：必答 `text` 的正文不能为空；必答 `choice` / `multi` 要求选项或补充说明至少一个非空，因此支持仅以说明作为完整回答。`optional: true` 允许任何题型完全留空提交。
 - `choice` 最多一个 `recommended: true`；`multi` 可以有多个；`text` 的 `recommended` 必须是预填字符串。
 - 表单字段使用独立的 `__answer_board_q_<id>`、`__answer_board_note_<id>` 和 `__answer_board_global` 命名空间，不会改变答案中的原始题目 ID。
-- `title`、`options[].text`、`options[].desc`、`facts` 和 `defaults` 按纯文本填写；只有 `body` 按 Markdown 渲染。
+- `title`、`options[].text`、`options[].desc`、`facts`、`defaults` 和 `refs` 每项按纯文本填写；只有 `body` 按 Markdown 渲染。
+
+题内引用：`questions[].refs` 是可选字符串数组，放本题引用的源文档条目原文——body 提到「新增 ①」「第 3 条」这类编号引用时，被引内容写在这里，页面按纯文本渲染在题干下方、选项之前。跨题共享的引用放顶层 `facts`；一句话能说清的可内联进 body。`refs` 只影响展示，不进答案、不影响提交校验。
 
 ## 答案文件
 
@@ -89,6 +92,6 @@
 
 ## Markdown 范围
 
-`body` 支持列表、嵌套列表、粗体、斜体、行内链接、表格、引用、标题、行内代码、代码块、换行和分隔线。标题、选项、事实和默认项不按 Markdown 渲染。HTML 原文会被转义。
+`body` 支持列表、嵌套列表、粗体、斜体、行内链接、表格、引用、标题、行内代码、代码块、换行和分隔线。标题、选项、事实、默认项和引用项不按 Markdown 渲染。HTML 原文会被转义。
 
 表格渲染规则：表头（`th`）永不换行，只有单元格内容（`td`）换行；每个表格被包进独立的横向滚动容器，宽度不超过正文列，溢出时容器内出现横向滚动条，不会撑破卡片。溢出容器可用键盘方向键滚动。
