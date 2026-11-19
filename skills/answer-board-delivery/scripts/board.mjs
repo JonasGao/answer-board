@@ -329,6 +329,18 @@ function renderPage(quiz) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(quiz.title)}</title>
+<script>
+// Start before parsing the form, and reveal it only after its display settings apply.
+// Without JavaScript the document stays visible with the round's initial width.
+document.documentElement.style.visibility = 'hidden';
+const preferenceUrl = '/preferences?screen=' + encodeURIComponent(screen.width + 'x' + screen.height);
+const displayPreferencesRequest = fetch(preferenceUrl, { signal: AbortSignal.timeout?.(5000) })
+  .then((response) => {
+    if (!response.ok) throw new Error('Preference read failed');
+    return response.json();
+  })
+  .catch(() => null);
+</script>
 <style>
   ${THEME_CSS}
   :root { --page-width: ${INITIAL_PAGE_WIDTH}px; --progress-height: 58px; }
@@ -564,7 +576,7 @@ function renderPage(quiz) {
 </div>
 <script src="https://cdn.jsdelivr.net/npm/markdown-it@15.0.3/dist/browser/markdown-it.umd.min.js"
         integrity="sha384-ARStLecQmtLYjBgfD3+w+irhiSoLTnFk/ne6c0gRWQKQtC9791ZLMQ9D3OaBISt3"
-        crossorigin="anonymous"></script>
+        crossorigin="anonymous" defer></script>
 <script>
 const DEFAULT_PAGE_WIDTH = ${DEFAULT_PAGE_WIDTH};
 const INITIAL_PAGE_WIDTH = ${INITIAL_PAGE_WIDTH};
@@ -721,7 +733,6 @@ document.querySelectorAll('.clear-choices').forEach((button) => {
   });
 });
 
-const preferenceUrl = '/preferences?screen=' + encodeURIComponent(screen.width + 'x' + screen.height);
 const editedPreferences = new Set();
 let preferenceWrites = Promise.resolve();
 
@@ -763,11 +774,10 @@ function legacyPreference(key, min, max) {
 
 async function loadDisplayPreferences() {
   try {
-    const response = await fetch(preferenceUrl, { signal: AbortSignal.timeout?.(5000) });
-    if (!response.ok) throw new Error('Preference read failed');
-    const saved = await response.json();
+    const saved = await displayPreferencesRequest;
+    if (!saved) throw new Error('Preference read failed');
     const fields = [
-      ['width', 'answer-board:pageWidth', 1000, MAX_PAGE_WIDTH, INITIAL_PAGE_WIDTH, setPageWidth],
+      ['width', 'answer-board:pageWidth', 1000, MAX_PAGE_WIDTH, DEFAULT_PAGE_WIDTH, setPageWidth],
       ['fontSize', 'answer-board:fontSize', MIN_FONT_SIZE, MAX_FONT_SIZE, DEFAULT_FONT_SIZE, setFontSize],
     ];
     for (const [field, legacyKey, min, max, defaultValue, apply] of fields) {
@@ -780,10 +790,13 @@ async function loadDisplayPreferences() {
           try { localStorage.removeItem(legacyKey); } catch {}
         }
       }
-      if (!editedPreferences.has(field)) apply(value ?? defaultValue);
+      // Missing preferences keep the round's initial value; null means an explicit reset.
+      if (value !== undefined && !editedPreferences.has(field)) apply(value ?? defaultValue);
     }
   } catch {
     showPreferenceStatus('无法读取已保存的显示设置。');
+  } finally {
+    document.documentElement.style.removeProperty('visibility');
   }
 }
 
