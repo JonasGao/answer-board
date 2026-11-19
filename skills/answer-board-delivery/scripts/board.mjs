@@ -138,12 +138,14 @@ const SUCCESS_CSS = `
   }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
   @media (prefers-reduced-motion: reduce) { .success-card { animation: none; } }
-  .check-circle {
+  .status-icon {
     width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 20px;
-    background: var(--success-bg); border: 2px solid var(--success-border);
+    border: 2px solid;
     display: flex; align-items: center; justify-content: center;
   }
-  .check-circle svg { width: 36px; height: 36px; color: var(--success); }
+  .status-icon svg { width: 36px; height: 36px; }
+  .check-circle { background: var(--success-bg); border-color: var(--success-border); color: var(--success); }
+  .wait-circle { background: var(--accent-bg); border-color: var(--card-border); color: var(--accent-text); }
   h1 { font-size: 1.4375rem; margin: 0 0 8px; font-weight: 600; }
   .sub { color: var(--muted); font-size: 1rem; margin: 0; }
   .close-btn { margin-top: 24px; background: var(--accent); color: #fff; border: 0; border-radius: 10px;
@@ -153,9 +155,16 @@ const SUCCESS_CSS = `
 `;
 
 const SUCCESS_ICON = `
-  <div class="check-circle" aria-hidden="true">
+  <div class="status-icon check-circle" aria-hidden="true">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
       <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+  </div>`;
+const WAITING_ICON = `
+  <div class="status-icon wait-circle" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"></circle>
+      <path d="M12 7v5l3 2"></path>
     </svg>
   </div>`;
 const SUCCESS_CARD_HTML = `
@@ -209,7 +218,7 @@ ${script ? `<script>${script}</script>` : ''}
 
 function endedCard(saved) {
   return `<main class="success-card">
-  ${saved ? SUCCESS_ICON : ''}
+  ${SUCCESS_ICON}
   <h1>问答已结束</h1>
   <p class="sub">${saved ? '本轮答案已保存，可以关闭此页面。' : '可以关闭此页面。'}</p>
 </main>`;
@@ -218,7 +227,7 @@ function endedCard(saved) {
 function renderContinuousStatus() {
   if (finished) return renderStatusPage(endedCard(submitted), '', '问答已结束');
   return renderStatusPage(`<main class="success-card">
-  ${SUCCESS_ICON}
+  ${WAITING_ICON}
   <h1>答案已保存</h1>
   <p class="sub" id="next-round-status" role="status">正在等待下一轮。问题就绪后，此页面会自动切换。</p>
 </main>`, `
